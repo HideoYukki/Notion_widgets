@@ -6,37 +6,56 @@
 <meta name="color-scheme" content="light dark">
 <title>Weather</title>
 <style>
-  :root{
-    --bg:#eef1f6; --card:#ffffff; --text:#1c2430; --muted:rgba(28,36,48,.60);
-    --accent:#3b6fd4; --line:rgba(28,36,48,.12); --tile:#e4e9f1;
-  }
+  :root{--card:#ffffff;--text:#1c2430;--accent:#3b6fd4}
   @media (prefers-color-scheme:dark){
-    :root{
-      --bg:#1b212b; --card:#232a36; --text:#eef2f8; --muted:rgba(238,242,248,.62);
-      --accent:#7aa7ff; --line:rgba(238,242,248,.14); --tile:#2c3442;
-    }
+    :root{--card:#232a36;--text:#eef2f8;--accent:#7aa7ff}
+  }
+  :root{
+    --muted:color-mix(in srgb,var(--text) 62%,transparent);
+    --line:color-mix(in srgb,var(--text) 14%,transparent);
+    --tile:color-mix(in srgb,var(--text) 8%,var(--card));
   }
   *{box-sizing:border-box}
-  html,body{margin:0;background:transparent;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text)}
-  .banner{
-    display:flex;align-items:center;gap:18px;width:100%;min-height:112px;
-    padding:12px 18px;border-radius:16px;background:var(--card);
-    box-shadow:inset 0 0 0 1px var(--line);
-  }
-  .now{display:flex;align-items:center;gap:12px;min-width:210px;padding-right:18px;border-right:1px solid var(--line)}
-  .now svg{width:62px;height:62px;flex:none}
-  .city{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700}
-  .temp{font-size:38px;font-weight:800;line-height:1.05;letter-spacing:-.02em}
-  .desc{font-size:12px;color:var(--muted)}
-  .days{flex:1;display:flex;gap:10px}
-  .day{flex:1;text-align:center;padding:8px 6px;border-radius:12px;background:var(--tile);transition:transform .25s}
+  html,body{height:100%}
+  body{margin:0;padding:2px;background:transparent;color:var(--text);
+    font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+
+  .banner{container-type:size;width:100%;height:100%;border-radius:16px;
+    background:var(--card);box-shadow:inset 0 0 0 1px var(--line);overflow:hidden}
+  .inner{height:100%;display:flex;align-items:stretch;
+    gap:clamp(8px,3cqmin,20px);padding:clamp(8px,4cqmin,22px)}
+
+  .now{flex:0 0 36%;min-width:0;display:flex;align-items:center;justify-content:center;
+    gap:clamp(8px,2.5cqw,16px);padding-right:clamp(8px,3cqw,18px);border-right:1px solid var(--line)}
+  .now svg{width:clamp(40px,min(13cqw,42cqh),130px);height:clamp(40px,min(13cqw,42cqh),130px);flex:none}
+  .city{font-size:clamp(10px,min(2.2cqw,8cqh),15px);letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent);font-weight:700;line-height:1.2}
+  .temp{font-size:clamp(24px,min(8.5cqw,32cqh),84px);font-weight:800;line-height:1.05;letter-spacing:-.02em}
+  .desc{font-size:clamp(11px,min(2.1cqw,8cqh),16px);color:var(--muted)}
+
+  .days{flex:1;min-width:0;display:flex;gap:clamp(6px,1.6cqw,14px)}
+  .day{flex:1;min-width:0;container-type:size;border-radius:12px;background:var(--tile);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:clamp(1px,2cqh,6px);text-align:center;transition:transform .25s}
   .day:hover{transform:translateY(-2px)}
-  .day .name{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);font-weight:700}
-  .day svg{width:40px;height:40px;display:block;margin:2px auto}
-  .day .range{font-size:14px;font-weight:700}
+  .day .name{font-size:clamp(9px,min(10cqw,13cqh),14px);letter-spacing:.1em;text-transform:uppercase;
+    color:var(--accent);font-weight:700}
+  .day svg{width:clamp(24px,min(46cqw,40cqh),76px);height:clamp(24px,min(46cqw,40cqh),76px)}
+  .day .range{font-size:clamp(12px,min(14cqw,18cqh),22px);font-weight:700}
   .day .range span{color:var(--muted);font-weight:500}
-  .day .rain{font-size:11px;color:var(--muted);margin-top:1px}
-  .status{width:100%;text-align:center;font-size:13px;color:var(--muted)}
+  .day .rain{font-size:clamp(9px,min(10cqw,11cqh),13px);color:var(--muted)}
+  @container (max-height:92px){.day .rain{display:none}}
+
+  /* układ pionowy dla wąskiego/wysokiego bloku */
+  .banner[data-layout="col"] .inner{flex-direction:column}
+  .banner[data-layout="col"] .now{flex:0 0 38%;border-right:0;border-bottom:1px solid var(--line);
+    padding:0 0 clamp(6px,2cqh,14px)}
+  .banner[data-layout="col"] .now svg{width:clamp(36px,min(20cqw,26cqh),110px);height:clamp(36px,min(20cqw,26cqh),110px)}
+  .banner[data-layout="col"] .temp{font-size:clamp(22px,min(13cqw,16cqh),72px)}
+  .banner[data-layout="col"] .city{font-size:clamp(10px,min(3.4cqw,5cqh),15px)}
+  .banner[data-layout="col"] .desc{font-size:clamp(11px,min(3.2cqw,5cqh),16px)}
+
+  .status{margin:auto;font-size:13px;color:var(--muted);text-align:center}
 
   .rays{transform-box:fill-box;transform-origin:center;animation:spin 18s linear infinite}
   .drift{animation:drift 6s ease-in-out infinite alternate}
@@ -48,23 +67,28 @@
   @keyframes fall{0%{transform:translateY(-3px);opacity:0}30%{opacity:1}100%{transform:translateY(7px);opacity:0}}
   @keyframes flash{0%,60%,100%{opacity:1}65%{opacity:.25}70%{opacity:1}75%{opacity:.3}}
   @media (prefers-reduced-motion:reduce){.rays,.drift,.d,.bolt{animation:none}}
-
-  @media (max-width:560px){
-    .banner{gap:10px;padding:10px 12px}
-    .now{min-width:0;padding-right:10px}
-    .now svg{width:44px;height:44px}
-    .temp{font-size:28px}
-    .desc{display:none}
-    .day svg{width:32px;height:32px}
-    .day .rain{display:none}
-  }
 </style>
 </head>
 <body>
-<div class="banner" id="banner"><div class="status">…</div></div>
+<div class="banner" id="banner"><div class="inner"><div class="status">…</div></div></div>
 
 <script>
-/* ---------- język ---------- */
+/* ---------- kolory z adresu: ?color=4E2B3C&text=FBF3F7&accent=F2B8CF ---------- */
+const Q = new URLSearchParams(location.search);
+const hex = v => { v=(v||'').replace(/^#/,'').trim(); if(/^[0-9a-f]{3}$/i.test(v)) v=v.replace(/./g,'$&$&'); return /^[0-9a-f]{6}$/i.test(v)?'#'+v:null; };
+(function(){
+  const bg=hex(Q.get('color')), tx=hex(Q.get('text')), ac=hex(Q.get('accent')), s=document.documentElement.style;
+  if(bg){
+    const n=parseInt(bg.slice(1),16), lum=(.299*(n>>16&255)+.587*(n>>8&255)+.114*(n&255))/255;
+    s.setProperty('--card',bg);
+    s.setProperty('--text',lum<.55?'#f6eef2':'#1c2430');
+    s.setProperty('--accent','color-mix(in srgb, var(--text) 78%, var(--card))');
+  }
+  if(tx) s.setProperty('--text',tx);
+  if(ac) s.setProperty('--accent',ac);
+})();
+
+/* ---------- język i jednostki ---------- */
 const LOC = (navigator.languages && navigator.languages[0]) || navigator.language || 'en';
 const LANG = LOC.split('-')[0].toLowerCase();
 const REGION = (LOC.split('-')[1] || '').toUpperCase();
@@ -140,6 +164,15 @@ async function localCityName(loc){
 
 const cap = s => s ? s.charAt(0).toUpperCase()+s.slice(1) : s;
 
+/* ---------- układ poziomy / pionowy ---------- */
+function setLayout(){
+  const b = document.getElementById('banner');
+  const w = b.clientWidth, h = b.clientHeight;
+  if(!w || !h) return;
+  b.dataset.layout = (w < 560 || w/h < 1.6) ? 'col' : 'row';
+}
+new ResizeObserver(setLayout).observe(document.body);
+
 async function load(){
   const el = document.getElementById('banner');
   try{
@@ -168,15 +201,17 @@ async function load(){
         <div class="range">${Math.round(d.temperature_2m_max[i])}° <span>/ ${Math.round(d.temperature_2m_min[i])}°</span></div>
         <div class="rain">💧 ${d.precipitation_probability_max[i] ?? 0}%</div></div>`;
     }
-    el.innerHTML = `<div class="now">${ICONS[cur.i]}<div>
+    el.innerHTML = `<div class="inner"><div class="now">${ICONS[cur.i]}<div>
         <div class="city">📍 ${city}</div>
         <div class="temp">${Math.round(w.current.temperature_2m)}${sym}</div>
         <div class="desc">${cur.t}</div></div></div>
-      <div class="days">${days}</div>`;
+      <div class="days">${days}</div></div>`;
+    setLayout();
   }catch(e){
-    el.innerHTML = '<div class="status">'+TX.err+' ('+(e&&e.message?e.message:'error')+')</div>';
+    el.innerHTML = '<div class="inner"><div class="status">'+TX.err+' ('+(e&&e.message?e.message:'error')+')</div></div>';
   }
 }
+setLayout();
 load();
 setInterval(load, 30*60*1000);
 </script>

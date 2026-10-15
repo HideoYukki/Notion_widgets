@@ -6,43 +6,36 @@
 <meta name="color-scheme" content="light dark">
 <title>World clock</title>
 <style>
-  :root{
-    --card:#ffffff; --text:#1c2430; --muted:rgba(28,36,48,.60);
-    --accent:#3b6fd4; --line:rgba(28,36,48,.12);
-  }
+  :root{--card:#ffffff;--text:#1c2430;--accent:#3b6fd4}
   @media (prefers-color-scheme:dark){
-    :root{
-      --card:#232a36; --text:#eef2f8; --muted:rgba(238,242,248,.62);
-      --accent:#7aa7ff; --line:rgba(238,242,248,.14);
-    }
+    :root{--card:#232a36;--text:#eef2f8;--accent:#7aa7ff}
+  }
+  :root{
+    --muted:color-mix(in srgb,var(--text) 62%,transparent);
+    --line:color-mix(in srgb,var(--text) 14%,transparent);
   }
   *{box-sizing:border-box}
-  html,body{margin:0;background:transparent;color:var(--text);
+  html,body{height:100%}
+  body{margin:0;padding:2px;background:transparent;color:var(--text);
     font-family:ui-monospace,"SF Mono","Cascadia Mono",Consolas,Menlo,monospace}
-  .grid{
-    display:grid;gap:12px;width:100%;
-    grid-template-columns:repeat(auto-fit,minmax(clamp(140px,40%,320px),1fr));
-  }
-  .tile{
-    container-type:inline-size;min-width:0;
-    background:var(--card);border-radius:16px;
-    padding:clamp(10px,4cqi,22px);
-    box-shadow:inset 0 0 0 1px var(--line);
-  }
-  .inner{padding:clamp(10px,5cqw,20px)}
-  .top{display:flex;align-items:baseline;gap:4px 10px;flex-wrap:wrap}
-  .city{font-weight:700;font-size:clamp(12px,6.5cqw,17px);color:var(--text);
+  .grid{display:grid;gap:12px;width:100%;height:100%}
+  .tile{container-type:size;min-width:0;min-height:0;background:var(--card);
+    border-radius:16px;box-shadow:inset 0 0 0 1px var(--line);overflow:hidden}
+  .inner{height:100%;display:flex;flex-direction:column;justify-content:center;
+    gap:clamp(4px,4cqh,14px);padding:clamp(8px,7cqmin,28px)}
+  .top{display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 10px;min-width:0}
+  .city{font-weight:700;font-size:clamp(11px,min(7cqw,15cqh),24px);color:var(--text);
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-  .meta{font-size:clamp(9px,4.4cqw,12px);font-weight:700;letter-spacing:.06em;
-    text-transform:uppercase;color:var(--muted)}
-  .bottom{display:flex;align-items:center;flex-wrap:wrap;gap:6px 14px;margin-top:8px}
-  .time{font-size:clamp(24px,17cqw,46px);font-weight:800;line-height:1;
+  .meta{font-size:clamp(9px,min(4.6cqw,9cqh),13px);font-weight:700;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--muted);white-space:nowrap}
+  .bottom{display:flex;align-items:center;flex-wrap:wrap;gap:4px 14px}
+  .time{font-size:clamp(20px,min(18cqw,38cqh),120px);font-weight:800;line-height:1;
     letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-  .phase{display:flex;align-items:center;gap:6px;font-size:clamp(9px,4.4cqw,12px);
+  .phase{display:flex;align-items:center;gap:6px;font-size:clamp(9px,min(4.6cqw,9cqh),13px);
     font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-  .phase i{display:flex}
-  .phase svg{width:clamp(14px,6cqw,18px);height:clamp(14px,6cqw,18px);flex:none}
-  @container (max-width:170px){ .phase span{display:none} }
+  .phase i{display:flex;color:var(--accent)}
+  .phase svg{width:clamp(14px,min(7cqw,12cqh),24px);height:clamp(14px,min(7cqw,12cqh),24px);flex:none}
+  @container (max-width:150px){.phase span{display:none}}
   .rays{transform-box:fill-box;transform-origin:center;animation:spin 20s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
   @media (prefers-reduced-motion:reduce){.rays{animation:none}}
@@ -52,6 +45,22 @@
 <div class="grid" id="grid"></div>
 
 <script>
+/* ---------- kolory z adresu: ?color=4E2B3C&text=FBF3F7&accent=F2B8CF ---------- */
+const Q = new URLSearchParams(location.search);
+const hex = v => { v=(v||'').replace(/^#/,'').trim(); if(/^[0-9a-f]{3}$/i.test(v)) v=v.replace(/./g,'$&$&'); return /^[0-9a-f]{6}$/i.test(v)?'#'+v:null; };
+(function(){
+  const bg=hex(Q.get('color')), tx=hex(Q.get('text')), ac=hex(Q.get('accent')), s=document.documentElement.style;
+  if(bg){
+    const n=parseInt(bg.slice(1),16), lum=(.299*(n>>16&255)+.587*(n>>8&255)+.114*(n&255))/255;
+    s.setProperty('--card',bg);
+    s.setProperty('--text',lum<.55?'#f6eef2':'#1c2430');
+    s.setProperty('--accent','color-mix(in srgb, var(--text) 78%, var(--card))');
+  }
+  if(tx) s.setProperty('--text',tx);
+  if(ac) s.setProperty('--accent',ac);
+})();
+
+/* ---------- język ---------- */
 const LOC = (navigator.languages && navigator.languages[0]) || navigator.language || 'en';
 const LANG = LOC.split('-')[0].toLowerCase();
 const TT = {
@@ -63,10 +72,11 @@ const TT = {
 };
 const TX = TT[LANG] || TT.en;
 
+/* ---------- miasta: ?cities=Name|Europe/Zone,Name2|Zone2 ---------- */
 const DEFAULT = [['Warsaw','Europe/Warsaw'],['London','Europe/London'],['Tokyo','Asia/Tokyo'],['Sydney','Australia/Sydney']];
 const validTz = z => { try{ new Intl.DateTimeFormat('en',{timeZone:z}); return true; }catch(e){ return false; } };
 function getCities(){
-  const p = new URLSearchParams(location.search).get('cities');
+  const p = Q.get('cities');
   if(!p) return DEFAULT;
   const list = p.split(',').map(s=>{ const [n,z]=s.split('|'); return [n&&n.trim(), z&&z.trim()]; })
                 .filter(([n,z]) => n && z && validTz(z)).slice(0,8);
@@ -93,14 +103,32 @@ const grid = document.getElementById('grid');
 const tiles = CITIES.map(([name,tz]) => {
   const el = document.createElement('div');
   el.className = 'tile';
-  el.innerHTML = `<div class="top"><span class="city"></span><span class="meta"></span></div>
-    <div class="bottom"><span class="time"></span><span class="phase"><i></i><span></span></span></div>`;
+  el.innerHTML = `<div class="inner"><div class="top"><span class="city"></span><span class="meta"></span></div>
+    <div class="bottom"><span class="time"></span><span class="phase"><i></i><span></span></span></div></div>`;
   el.querySelector('.city').textContent = name;
   grid.appendChild(el);
   return {tz, el, night:null,
     meta: el.querySelector('.meta'), time: el.querySelector('.time'),
     icon: el.querySelector('.phase i'), label: el.querySelector('.phase span')};
 });
+
+/* ---------- dobór liczby kolumn do dostępnej przestrzeni ---------- */
+function layout(){
+  const W = grid.clientWidth, H = grid.clientHeight, n = tiles.length, gap = 12;
+  if(!W || !H) return;
+  let best = 1, bestScore = Infinity;
+  for(let c = 1; c <= n; c++){
+    const r = Math.ceil(n / c);
+    const w = (W - gap*(c-1)) / c, h = (H - gap*(r-1)) / r;
+    if(w <= 0 || h <= 0) continue;
+    const score = Math.abs(Math.log((w/h) / 1.9));
+    if(score < bestScore){ bestScore = score; best = c; }
+  }
+  grid.style.gridTemplateColumns = `repeat(${best}, minmax(0,1fr))`;
+  grid.style.gridTemplateRows = `repeat(${Math.ceil(n/best)}, minmax(0,1fr))`;
+}
+new ResizeObserver(layout).observe(document.body);
+layout();
 
 function tick(){
   const now = new Date();
