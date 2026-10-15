@@ -8,7 +8,6 @@ Ready-to-use widgets for Notion. No sign-up, no coding: copy the link, paste it,
 |--------|-------------|------|
 | 🌤️ Weather | 3-day forecast, auto-detects city, language and units | `https://hideoyukki.github.io/widgets/embed/weather/` |
 | 🕐 World clock | Live clocks for up to 8 cities with day/night icons. Pick cities via `?cities=Name\|Europe/Zone`. | `https://hideoyukki.github.io/widgets/embed/clock/` |
-| 🖼️ Parallax image | Fits any image to the block and adds a smooth parallax effect. Set it via `?src=IMAGE_URL`. | `https://YOUR_USERNAME.github.io/REPO_NAME/embed/parallax/?src=IMAGE_URL` |
 
 ## Colors
 
@@ -17,17 +16,6 @@ Add parameters to any widget link (hex without `#`): `color` (background), `text
 `.../embed/clock/?color=4E2B3C&accent=F2B8CF`
 
 Without parameters, widgets follow the system light/dark theme.
-
-## Customizing the Parallax image
-
-Required: `src` (URL-encoded image link). Optional:
-
-- `fit`: `cover` (default), `contain`, `fill`
-- `pos`: focal point in %, e.g. `50,30`
-- `strength`: 0–100 (default `30`)
-- `mode`: `both` (default), `pointer`, `auto`, `off`
-- `radius`: corner radius in px
-- `bg`: letterbox for `contain`: `blur` (default), hex color, `none`
 
 ## How to add to Notion
 
