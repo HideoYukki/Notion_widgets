@@ -1,1 +1,31 @@
-# widgets
+# Free Notion Widgets
+
+Ready-to-use widgets for Notion. No sign-up, no coding: copy the link, paste it, done.
+
+## Widgets
+
+| Widget | Description | Link |
+|--------|-------------|------|
+| 🌤️ Weather | 3-day forecast, auto-detects city, language and units | `https://hideoyukki.github.io/widgets/embed/weather/` |
+
+## How to add to Notion
+
+1. On your Notion page, type `/embed` and choose **Embed**.
+2. Paste the widget link and click **Embed link**.
+3. Drag the bottom edge of the block to adjust its height.
+
+## FAQ
+
+**Is it free, and do I need an account?**
+Yes, it's free. No, you don't need an account.
+
+**The widget doesn't load in Notion.**
+Check that the link works in a regular browser tab. If it does, refresh Notion or paste the link again. If it still fails, open an issue in **Issues**.
+
+## Make your own copy
+
+Click **Fork**, enable **Settings** → **Pages** in your copy (**Deploy from a branch**, `main`, `/ (root)`), and edit the files in `embed/{name}/index.html`.
+
+## Privacy
+
+Widgets don't store anything. Some connect to external services (e.g. Weather: Open-Meteo, ipwho.is, ipapi.co, BigDataCloud), which can see your IP address.
