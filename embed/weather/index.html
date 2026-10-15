@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Weather</title>
+<style>
+  :root{
+    --bg:#eef1f6; --card:#ffffff; --text:#1c2430; --muted:rgba(28,36,48,.60);
+    --accent:#3b6fd4; --line:rgba(28,36,48,.12); --tile:#e4e9f1;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#1b212b; --card:#232a36; --text:#eef2f8; --muted:rgba(238,242,248,.62);
+      --accent:#7aa7ff; --line:rgba(238,242,248,.14); --tile:#2c3442;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:transparent;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text)}
+  .banner{
+    display:flex;align-items:center;gap:18px;width:100%;min-height:112px;
+    padding:12px 18px;border-radius:16px;background:var(--card);
+    box-shadow:inset 0 0 0 1px var(--line);
+  }
+  .now{display:flex;align-items:center;gap:12px;min-width:210px;padding-right:18px;border-right:1px solid var(--line)}
+  .now svg{width:62px;height:62px;flex:none}
+  .city{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  .temp{font-size:38px;font-weight:800;line-height:1.05;letter-spacing:-.02em}
+  .desc{font-size:12px;color:var(--muted)}
+  .days{flex:1;display:flex;gap:10px}
+  .day{flex:1;text-align:center;padding:8px 6px;border-radius:12px;background:var(--tile);transition:transform .25s}
+  .day:hover{transform:translateY(-2px)}
+  .day .name{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  .day svg{width:40px;height:40px;display:block;margin:2px auto}
+  .day .range{font-size:14px;font-weight:700}
+  .day .range span{color:var(--muted);font-weight:500}
+  .day .rain{font-size:11px;color:var(--muted);margin-top:1px}
+  .status{width:100%;text-align:center;font-size:13px;color:var(--muted)}
+
+  .rays{transform-box:fill-box;transform-origin:center;animation:spin 18s linear infinite}
+  .drift{animation:drift 6s ease-in-out infinite alternate}
+  .d{animation:fall 1.1s linear infinite}
+  .d2{animation-delay:.35s}.d3{animation-delay:.7s}
+  .bolt{animation:flash 2.4s ease-in-out infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes drift{from{transform:translateX(-1.5px)}to{transform:translateX(2px)}}
+  @keyframes fall{0%{transform:translateY(-3px);opacity:0}30%{opacity:1}100%{transform:translateY(7px);opacity:0}}
+  @keyframes flash{0%,60%,100%{opacity:1}65%{opacity:.25}70%{opacity:1}75%{opacity:.3}}
+  @media (prefers-reduced-motion:reduce){.rays,.drift,.d,.bolt{animation:none}}
+
+  @media (max-width:560px){
+    .banner{gap:10px;padding:10px 12px}
+    .now{min-width:0;padding-right:10px}
+    .now svg{width:44px;height:44px}
+    .temp{font-size:28px}
+    .desc{display:none}
+    .day svg{width:32px;height:32px}
+    .day .rain{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="banner" id="banner"><div class="status">…</div></div>
+
+<script>
+/* ---------- język ---------- */
+const LOC = (navigator.languages && navigator.languages[0]) || navigator.language || 'en';
+const LANG = LOC.split('-')[0].toLowerCase();
+const REGION = (LOC.split('-')[1] || '').toUpperCase();
+document.documentElement.lang = LANG;
+
+const T = {
+  en:{clear:'Clear sky',mostly:'Mostly clear',partly:'Partly cloudy',cloudy:'Overcast',fog:'Fog',drizzle:'Drizzle',rain:'Rain',snow:'Snow',showers:'Showers',snowshowers:'Snow showers',storm:'Thunderstorm',err:'Could not load the weather',cur:'Your location'},
+  pl:{clear:'Bezchmurnie',mostly:'Prawie bezchmurnie',partly:'Częściowe zachmurzenie',cloudy:'Pochmurno',fog:'Mgła',drizzle:'Mżawka',rain:'Deszcz',snow:'Śnieg',showers:'Przelotne opady',snowshowers:'Opady śniegu',storm:'Burza',err:'Nie udało się pobrać pogody',cur:'Twoja lokalizacja'},
+  de:{clear:'Klar',mostly:'Überwiegend klar',partly:'Teilweise bewölkt',cloudy:'Bedeckt',fog:'Nebel',drizzle:'Nieselregen',rain:'Regen',snow:'Schnee',showers:'Schauer',snowshowers:'Schneeschauer',storm:'Gewitter',err:'Wetter konnte nicht geladen werden',cur:'Dein Standort'},
+  es:{clear:'Despejado',mostly:'Mayormente despejado',partly:'Parcialmente nublado',cloudy:'Nublado',fog:'Niebla',drizzle:'Llovizna',rain:'Lluvia',snow:'Nieve',showers:'Chubascos',snowshowers:'Chubascos de nieve',storm:'Tormenta',err:'No se pudo cargar el tiempo',cur:'Tu ubicación'},
+  fr:{clear:'Dégagé',mostly:'Plutôt dégagé',partly:'Partiellement nuageux',cloudy:'Couvert',fog:'Brouillard',drizzle:'Bruine',rain:'Pluie',snow:'Neige',showers:'Averses',snowshowers:'Averses de neige',storm:'Orage',err:'Impossible de charger la météo',cur:'Votre position'},
+  it:{clear:'Sereno',mostly:'Prevalentemente sereno',partly:'Parzialmente nuvoloso',cloudy:'Coperto',fog:'Nebbia',drizzle:'Pioggerella',rain:'Pioggia',snow:'Neve',showers:'Rovesci',snowshowers:'Rovesci di neve',storm:'Temporale',err:'Impossibile caricare il meteo',cur:'La tua posizione'},
+  cs:{clear:'Jasno',mostly:'Převážně jasno',partly:'Polojasno',cloudy:'Zataženo',fog:'Mlha',drizzle:'Mrholení',rain:'Déšť',snow:'Sníh',showers:'Přeháňky',snowshowers:'Sněhové přeháňky',storm:'Bouřka',err:'Počasí se nepodařilo načíst',cur:'Vaše poloha'}
+};
+const TX = T[LANG] || T.en;
+
+/* ---------- ikony ---------- */
+const CLOUD = (f='#F1E8ED') => `<path d="M18 46a8 8 0 0 1 1-16 12 12 0 0 1 23-3 9.5 9.5 0 0 1 3 19z" fill="${f}" stroke="rgba(0,0,0,.12)" stroke-width="1"/>`;
+const SUN = (x,y,s=1) => {
+  let r=''; for(let a=0;a<360;a+=45) r+=`<line x1="0" y1="-14" x2="0" y2="-19" transform="rotate(${a})"/>`;
+  return `<g transform="translate(${x},${y}) scale(${s})"><g class="rays" stroke="#FFB627" stroke-width="3" stroke-linecap="round">${r}</g><circle r="9" fill="#FFB627"/></g>`;
+};
+const svg = inner => `<svg viewBox="0 0 64 64" overflow="visible">${inner}</svg>`;
+const ICONS = {
+  clear:  svg(SUN(32,32,1.25)),
+  partly: svg(SUN(25,24,.95) + `<g class="drift">${CLOUD()}</g>`),
+  cloudy: svg(`<g transform="translate(12,-8) scale(.8)">${CLOUD('#A9B3C1')}</g><g class="drift">${CLOUD('#D5DBE5')}</g>`),
+  fog:    svg(`<g class="drift">${CLOUD('#D5DBE5')}</g><g stroke="#AEB8C6" stroke-width="3" stroke-linecap="round"><line x1="16" y1="52" x2="46" y2="52"/><line x1="22" y1="58" x2="52" y2="58"/></g>`),
+  rain:   svg(`${CLOUD('#BFC8D6')}<g stroke="#4DA3FF" stroke-width="3" stroke-linecap="round"><line class="d d1" x1="25" y1="50" x2="23" y2="56"/><line class="d d2" x1="33" y1="50" x2="31" y2="56"/><line class="d d3" x1="41" y1="50" x2="39" y2="56"/></g>`),
+  snow:   svg(`${CLOUD('#D5DBE5')}<g fill="#8FB8E8"><circle class="d d1" cx="25" cy="53" r="2.2"/><circle class="d d2" cx="33" cy="53" r="2.2"/><circle class="d d3" cx="41" cy="53" r="2.2"/></g>`),
+  storm:  svg(`${CLOUD('#A9B3C1')}<polygon class="bolt" points="34,46 27,57 33,57 30,64 40,52 34,52 37,46" fill="#FFC700"/>`)
+};
+function info(c){
+  if(c===0) return {t:TX.clear,i:'clear'};
+  if(c===1) return {t:TX.mostly,i:'clear'};
+  if(c===2) return {t:TX.partly,i:'partly'};
+  if(c===3) return {t:TX.cloudy,i:'cloudy'};
+  if(c===45||c===48) return {t:TX.fog,i:'fog'};
+  if(c>=51&&c<=57) return {t:TX.drizzle,i:'rain'};
+  if(c>=61&&c<=67) return {t:TX.rain,i:'rain'};
+  if(c>=71&&c<=77) return {t:TX.snow,i:'snow'};
+  if(c>=80&&c<=82) return {t:TX.showers,i:'rain'};
+  if(c===85||c===86) return {t:TX.snowshowers,i:'snow'};
+  if(c>=95) return {t:TX.storm,i:'storm'};
+  return {t:'—',i:'cloudy'};
+}
+
+/* ---------- lokalizacja z IP (bez pytania o zgodę) ---------- */
+async function getJSON(url){
+  const r = await fetch(url);
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  return r.json();
+}
+async function getLocation(){
+  try{
+    const j = await getJSON('https://ipwho.is/');
+    if(j.success !== false && j.latitude != null)
+      return {lat:j.latitude, lon:j.longitude, city:j.city, country:j.country_code};
+  }catch(e){}
+  try{
+    const j = await getJSON('https://ipapi.co/json/');
+    if(j.latitude != null)
+      return {lat:j.latitude, lon:j.longitude, city:j.city, country:j.country_code};
+  }catch(e){}
+  return {lat:52.2297, lon:21.0122, city:'Warszawa', country:'PL'};
+}
+async function localCityName(loc){
+  try{
+    const j = await getJSON(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${loc.lat}&longitude=${loc.lon}&localityLanguage=${LANG}`);
+    return j.city || j.locality || loc.city || TX.cur;
+  }catch(e){ return loc.city || TX.cur; }
+}
+
+const cap = s => s ? s.charAt(0).toUpperCase()+s.slice(1) : s;
+
+async function load(){
+  const el = document.getElementById('banner');
+  try{
+    const loc = await getLocation();
+    const useF = ['US','LR','MM'].includes(REGION || loc.country);
+    const unit = useF ? 'fahrenheit' : 'celsius';
+    const sym = useF ? '°F' : '°C';
+
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}`+
+      `&current=temperature_2m,weather_code`+
+      `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max`+
+      `&temperature_unit=${unit}&timezone=auto&forecast_days=3`;
+    const [w, city] = await Promise.all([getJSON(url), localCityName(loc)]);
+
+    const cur = info(w.current.weather_code);
+    const d = w.daily;
+    const rtf = new Intl.RelativeTimeFormat(LOC, {numeric:'auto'});
+    let days = '';
+    for(let i=0;i<3;i++){
+      const inf = info(d.weather_code[i]);
+      const name = i<2
+        ? cap(rtf.format(i,'day'))
+        : cap(new Date(d.time[i]+'T12:00:00').toLocaleDateString(LOC,{weekday:'long'}));
+      days += `<div class="day" title="${inf.t}">
+        <div class="name">${name}</div>${ICONS[inf.i]}
+        <div class="range">${Math.round(d.temperature_2m_max[i])}° <span>/ ${Math.round(d.temperature_2m_min[i])}°</span></div>
+        <div class="rain">💧 ${d.precipitation_probability_max[i] ?? 0}%</div></div>`;
+    }
+    el.innerHTML = `<div class="now">${ICONS[cur.i]}<div>
+        <div class="city">📍 ${city}</div>
+        <div class="temp">${Math.round(w.current.temperature_2m)}${sym}</div>
+        <div class="desc">${cur.t}</div></div></div>
+      <div class="days">${days}</div>`;
+  }catch(e){
+    el.innerHTML = '<div class="status">'+TX.err+' ('+(e&&e.message?e.message:'error')+')</div>';
+  }
+}
+load();
+setInterval(load, 30*60*1000);
+</script>
+</body>
+</html>
