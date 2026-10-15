@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Parallax image</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;padding:2px;background:transparent;
+    font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .frame{position:relative;width:100%;height:100%;overflow:hidden;background:#232a36;
+    border-radius:16px;touch-action:pan-y}
+  .layer{position:absolute;inset:0;will-change:transform;transform:translate3d(0,0,0)}
+  .layer img{position:absolute;inset:0;width:100%;height:100%;display:block;
+    -webkit-user-drag:none;user-select:none;pointer-events:none}
+  .bg img{filter:blur(28px) saturate(1.1);transform:scale(1.15)}
+  .msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    padding:16px;text-align:center;font-size:13px;line-height:1.5;color:#c8d0dc}
+  .msg code{background:rgba(255,255,255,.1);padding:1px 6px;border-radius:6px}
+  .frame{opacity:0;transition:opacity .5s}
+  .frame.ready{opacity:1}
+</style>
+</head>
+<body>
+<div class="frame" id="frame"></div>
+
+<script>
+const Q = new URLSearchParams(location.search);
+const num = (v, d, min, max) => { const n = parseFloat(v); return isFinite(n) ? Math.min(max, Math.max(min, n)) : d; };
+
+/* ---------- parametry ---------- */
+let SRC = Q.get('src') || '';
+if(SRC && !/^https?:\/\//i.test(SRC)){ try{ SRC = decodeURIComponent(SRC); }catch(e){} }
+const FIT = ['cover','contain','fill'].includes(Q.get('fit')) ? Q.get('fit') : 'cover';
+const POS = (Q.get('pos') || '50,50').split(',').map(v => num(v, 50, 0, 100));
+const STRENGTH = num(Q.get('strength'), 30, 0, 100);
+const MODE = ['both','pointer','auto','off'].includes(Q.get('mode')) ? Q.get('mode') : 'both';
+const RADIUS = num(Q.get('radius'), 16, 0, 200);
+const BG = (Q.get('bg') || 'blur').replace(/^#/, '');
+
+const frame = document.getElementById('frame');
+frame.style.borderRadius = RADIUS + 'px';
+
+function message(html){ frame.innerHTML = '<div class="msg"><div>' + html + '</div></div>'; frame.classList.add('ready'); }
+
+if(!SRC || !/^https?:\/\//i.test(SRC)){
+  message('Add an image link to the widget address:<br><code>?src=https://…/image.jpg</code>');
+} else {
+  const AMP = STRENGTH / 100 * 0.10;                  // maks. przesunięcie jako ułamek rozmiaru okna
+  const objPos = POS[0] + '% ' + POS[1] + '%';
+  const makeImg = fit => {
+    const i = new Image();
+    i.alt = ''; i.decoding = 'async'; i.referrerPolicy = 'no-referrer';
+    i.style.objectFit = fit; i.style.objectPosition = objPos;
+    return i;
+  };
+
+  const layers = [];   // {el, depth, scale}
+  if(FIT === 'contain'){
+    if(/^[0-9a-f]{3}$|^[0-9a-f]{6}$/i.test(BG)) frame.style.background = '#' + BG;
+    if(BG === 'blur'){
+      const bg = document.createElement('div'); bg.className = 'layer bg';
+      bg.appendChild(makeImg('cover')); frame.appendChild(bg);
+      layers.push({el:bg, depth:.45, scale:1 + AMP*2});
+    }
+    const fg = document.createElement('div'); fg.className = 'layer';
+    fg.appendChild(makeImg('contain')); frame.appendChild(fg);
+    layers.push({el:fg, depth:1, scale:1});
+  } else {
+    const l = document.createElement('div'); l.className = 'layer';
+    l.appendChild(makeImg(FIT)); frame.appendChild(l);
+    layers.push({el:l, depth:1, scale:1 + AMP*2});
+  }
+
+  const main = layers[layers.length-1].el.querySelector('img');
+  main.addEventListener('load', () => frame.classList.add('ready'));
+  main.addEventListener('error', () => message('Could not load the image.<br>Check the link in <code>src</code>.'));
+  layers.forEach(l => { l.el.querySelector('img').src = SRC; });
+
+  /* ---------- ruch ---------- */
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const usePointer = MODE === 'both' || MODE === 'pointer';
+  const useAuto = MODE === 'both' || MODE === 'auto';
+  let tx = 0, ty = 0, cx = 0, cy = 0, lastPointer = -1e9;
+
+  if(usePointer && !reduce){
+    const move = e => {
+      const r = frame.getBoundingClientRect();
+      tx = Math.max(-1, Math.min(1, ((e.clientX - r.left) / r.width  - .5) * 2));
+      ty = Math.max(-1, Math.min(1, ((e.clientY - r.top)  / r.height - .5) * 2));
+      lastPointer = performance.now();
+    };
+    addEventListener('pointermove', move, {passive:true});
+    addEventListener('pointerdown', move, {passive:true});
+  }
+
+  function frameLoop(t){
+    const idle = t - lastPointer > 2500;
+    if(!reduce && MODE !== 'off'){
+      if(useAuto && idle){
+        tx = Math.sin(t * 0.00030) * 0.85;
+        ty = Math.cos(t * 0.00041) * 0.65;
+      } else if(!usePointer){ tx = ty = 0; }
+      else if(idle){ tx = ty = 0; }
+    }
+    cx += (tx - cx) * 0.06;
+    cy += (ty - cy) * 0.06;
+    const w = frame.clientWidth, h = frame.clientHeight;
+    layers.forEach(l => {
+      const x = -cx * AMP * w * l.depth, y = -cy * AMP * h * l.depth;
+      l.el.style.transform = `translate3d(${x.toFixed(2)}px,${y.toFixed(2)}px,0) scale(${l.scale})`;
+    });
+    requestAnimationFrame(frameLoop);
+  }
+  requestAnimationFrame(frameLoop);
+}
+</script>
+</body>
+</html>
