@@ -7,6 +7,7 @@ Ready-to-use widgets for Notion. No sign-up, no coding: copy the link, paste it,
 | Widget | Description | Link |
 |--------|-------------|------|
 | 🌤️ Weather | 3-day forecast, auto-detects city, language and units | `https://hideoyukki.github.io/widgets/embed/weather/` |
+| 🕐 World clock | Live clocks for up to 8 cities with day/night icons. Pick cities via `?cities=Name\|Europe/Zone`. | `https://hideoyukki.github.io/widgets/embed/clock/` |
 
 ## How to add to Notion
 
