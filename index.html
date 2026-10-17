@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Notion widgets</title>
+<style>
+  :root{--bg:#f4f6fa;--card:#ffffff;--text:#1c2430;--accent:#3b6fd4}
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#161b24;--card:#232a36;--text:#eef2f8;--accent:#7aa7ff}
+  }
+  :root{
+    --muted:color-mix(in srgb,var(--text) 62%,transparent);
+    --line:color-mix(in srgb,var(--text) 14%,transparent);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.5}
+  main{max-width:1000px;margin:0 auto;padding:32px 16px 48px}
+  h1{margin:0 0 4px;font-size:28px}
+  .sub{margin:0 0 24px;color:var(--muted)}
+  .layout{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:20px;align-items:start}
+  @media (max-width:760px){.layout{grid-template-columns:1fr}}
+  .panel{background:var(--card);border-radius:16px;box-shadow:inset 0 0 0 1px var(--line);padding:18px}
+  label{display:block;margin:12px 0 4px;font-size:12px;font-weight:700;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--muted)}
+  label:first-child{margin-top:0}
+  input[type=text],input[type=url],input[type=number],select,textarea{width:100%;padding:8px 10px;
+    border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--text);font:inherit}
+  textarea{resize:vertical;min-height:84px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .row{display:flex;gap:10px;align-items:center}
+  .row>*{flex:1;min-width:0}
+  .color{display:flex;gap:8px;align-items:center}
+  .color input[type=color]{width:38px;height:34px;padding:0;border:1px solid var(--line);border-radius:8px;background:none;flex:none}
+  .color input[type=text]{flex:1}
+  .color button{flex:none}
+  .hint{margin:4px 0 0;font-size:12px;color:var(--muted)}
+  button{padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:transparent;
+    color:var(--text);font:inherit;cursor:pointer}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+  .tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+  .tabs button[aria-selected=true]{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+  .preview{width:100%;border:0;border-radius:16px;background:transparent;
+    box-shadow:inset 0 0 0 1px var(--line)}
+  .out{margin-top:16px}
+  .out .row{margin-top:6px}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <h1>Notion widgets</h1>
+  <p class="sub">Pick a widget, tweak it, copy the link and paste it into Notion with <code>/embed</code>.</p>
+
+  <div class="tabs" id="tabs" role="tablist"></div>
+
+  <div class="layout">
+    <section class="panel" id="options"></section>
+
+    <section>
+      <div class="panel">
+        <label for="height">Preview height: <span id="hval"></span> px</label>
+        <input type="range" id="height" min="120" max="500" step="10" value="220">
+        <iframe class="preview" id="preview" title="Widget preview" style="margin-top:12px;height:220px"></iframe>
+      </div>
+      <div class="panel out">
+        <label for="link">Widget link</label>
+        <div class="row">
+          <input type="text" id="link" readonly>
+          <button class="primary" id="copy" style="flex:none">Copy</button>
+        </div>
+        <p class="hint">In Notion: type <code>/embed</code>, paste the link, then drag the block's bottom edge to resize it.</p>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+
+/* ---------- widget definitions ---------- */
+/* field types: text, textarea, select, range, color (hex without #, optional) */
+const COLORS = [
+  {k:'color', label:'Background', hint:'Empty = follows the system light/dark theme'},
+  {k:'text', label:'Text color'},
+  {k:'accent', label:'Accent color'}
+];
+const WIDGETS = {
+  weather: {
+    name:'🌤️ Weather', path:'embed/weather/', height:200,
+    fields:[...COLORS.map(c => ({type:'color', ...c}))]
+  },
+  clock: {
+    name:'🕐 World clock', path:'embed/clock/', height:240,
+    fields:[
+      {type:'textarea', k:'cities', label:'Cities (one per line: Name|Time/Zone)', max:8,
+        value:'Warsaw|Europe/Warsaw\nLondon|Europe/London\nTokyo|Asia/Tokyo\nSydney|Australia/Sydney',
+        hint:'Up to 8 cities. Use IANA zone names, e.g. America/New_York.'},
+      ...COLORS.map(c => ({type:'color', ...c}))
+    ]
+  },
+  parallax: {
+    name:'🖼️ Parallax image', path:'embed/parallax/', height:300,
+    fields:[
+      {type:'text', k:'src', label:'Image URL', value:'', placeholder:'https://…/image.jpg'},
+      {type:'select', k:'fit', label:'Fit', def:'cover', options:['cover','contain','fill']},
+      {type:'text', k:'pos', label:'Focal point in % (x,y)', def:'50,50', placeholder:'50,50'},
+      {type:'range', k:'strength', label:'Strength', def:30, min:0, max:100},
+      {type:'select', k:'mode', label:'Motion', def:'both', options:['both','pointer','auto','off']},
+      {type:'range', k:'radius', label:'Corner radius (px)', def:16, min:0, max:60},
+      {type:'text', k:'bg', label:'Letterbox (for contain): blur, hex or none', def:'blur', placeholder:'blur'}
+    ]
+  }
+};
+
+const state = {widget:'weather', values:{}};
+const hexOk = v => /^[0-9a-f]{3}$|^[0-9a-f]{6}$/i.test(v);
+
+/* ---------- build the URL from the current values ---------- */
+function buildUrl(){
+  const w = WIDGETS[state.widget];
+  const url = new URL(w.path, location.href);
+  const v = state.values[state.widget] || {};
+  w.fields.forEach(f => {
+    let val = (v[f.k] ?? '').toString().trim();
+    if(f.type === 'textarea'){
+      val = val.split('\n').map(s => s.trim()).filter(Boolean).slice(0, f.max || 99).join(',');
+    }
+    if(f.type === 'color' && !hexOk(val)) val = '';
+    if(!val || (f.def !== undefined && val === String(f.def))) return;
+    url.searchParams.set(f.k, val);
+  });
+  return url.toString();
+}
+
+function refresh(){
+  const url = buildUrl();
+  $('link').value = url;
+  $('preview').src = url;
+}
+
+/* ---------- render the option panel for the selected widget ---------- */
+function renderOptions(){
+  const w = WIDGETS[state.widget];
+  const vals = state.values[state.widget] ||= {};
+  const box = $('options');
+  box.innerHTML = '';
+  w.fields.forEach(f => {
+    if(vals[f.k] === undefined) vals[f.k] = f.value ?? f.def ?? '';
+    const lab = document.createElement('label');
+    lab.textContent = f.label;
+    box.appendChild(lab);
+
+    let input;
+    if(f.type === 'select'){
+      input = document.createElement('select');
+      f.options.forEach(o => input.add(new Option(o, o)));
+    } else if(f.type === 'textarea'){
+      input = document.createElement('textarea');
+    } else if(f.type === 'range'){
+      input = document.createElement('input');
+      input.type = 'range'; input.min = f.min; input.max = f.max;
+    } else if(f.type === 'color'){
+      const wrap = document.createElement('div');
+      wrap.className = 'color';
+      const pick = document.createElement('input'); pick.type = 'color';
+      input = document.createElement('input'); input.type = 'text'; input.placeholder = 'e.g. 4E2B3C';
+      const clear = document.createElement('button'); clear.type = 'button'; clear.textContent = 'Reset';
+      pick.addEventListener('input', () => { input.value = pick.value.slice(1); input.dispatchEvent(new Event('input')); });
+      clear.addEventListener('click', () => { input.value = ''; input.dispatchEvent(new Event('input')); });
+      input.addEventListener('input', () => { if(hexOk(input.value.replace(/^#/,''))){
+        const h = input.value.replace(/^#/,''); pick.value = '#' + (h.length === 3 ? h.replace(/./g,'$&$&') : h); } });
+      wrap.append(pick, input, clear);
+      box.appendChild(wrap);
+    } else {
+      input = document.createElement('input');
+      input.type = 'text';
+    }
+    if(f.placeholder) input.placeholder = f.placeholder;
+    input.value = vals[f.k];
+    input.addEventListener('input', () => {
+      vals[f.k] = f.type === 'color' ? input.value.replace(/^#/, '') : input.value;
+      refresh();
+    });
+    if(f.type !== 'color') box.appendChild(input);
+    if(f.hint){
+      const p = document.createElement('p'); p.className = 'hint'; p.textContent = f.hint;
+      box.appendChild(p);
+    }
+  });
+  $('height').value = w.height;
+  setHeight();
+  refresh();
+}
+
+function setHeight(){
+  $('hval').textContent = $('height').value;
+  $('preview').style.height = $('height').value + 'px';
+}
+$('height').addEventListener('input', setHeight);
+
+/* ---------- widget tabs ---------- */
+Object.entries(WIDGETS).forEach(([id, w]) => {
+  const b = document.createElement('button');
+  b.type = 'button'; b.role = 'tab'; b.textContent = w.name;
+  b.setAttribute('aria-selected', id === state.widget);
+  b.addEventListener('click', () => {
+    state.widget = id;
+    [...$('tabs').children].forEach(x => x.setAttribute('aria-selected', x === b));
+    renderOptions();
+  });
+  $('tabs').appendChild(b);
+});
+
+$('copy').addEventListener('click', async () => {
+  const b = $('copy');
+  try{ await navigator.clipboard.writeText($('link').value); }
+  catch(e){ $('link').select(); document.execCommand('copy'); }
+  b.textContent = 'Copied!';
+  setTimeout(() => b.textContent = 'Copy', 1500);
+});
+
+renderOptions();
+</script>
+</body>
+</html>

@@ -45,7 +45,7 @@
 <div class="grid" id="grid"></div>
 
 <script>
-/* ---------- kolory z adresu: ?color=4E2B3C&text=FBF3F7&accent=F2B8CF ---------- */
+/* ---------- colors from the URL: ?color=4E2B3C&text=FBF3F7&accent=F2B8CF ---------- */
 const Q = new URLSearchParams(location.search);
 const hex = v => { v=(v||'').replace(/^#/,'').trim(); if(/^[0-9a-f]{3}$/i.test(v)) v=v.replace(/./g,'$&$&'); return /^[0-9a-f]{6}$/i.test(v)?'#'+v:null; };
 (function(){
@@ -60,7 +60,7 @@ const hex = v => { v=(v||'').replace(/^#/,'').trim(); if(/^[0-9a-f]{3}$/i.test(v
   if(ac) s.setProperty('--accent',ac);
 })();
 
-/* ---------- język ---------- */
+/* ---------- language ---------- */
 const LOC = (navigator.languages && navigator.languages[0]) || navigator.language || 'en';
 const LANG = LOC.split('-')[0].toLowerCase();
 const TT = {
@@ -72,7 +72,7 @@ const TT = {
 };
 const TX = TT[LANG] || TT.en;
 
-/* ---------- miasta: ?cities=Name|Europe/Zone,Name2|Zone2 ---------- */
+/* ---------- cities: ?cities=Name|Europe/Zone,Name2|Zone2 ---------- */
 const DEFAULT = [['Warsaw','Europe/Warsaw'],['London','Europe/London'],['Tokyo','Asia/Tokyo'],['Sydney','Australia/Sydney']];
 const validTz = z => { try{ new Intl.DateTimeFormat('en',{timeZone:z}); return true; }catch(e){ return false; } };
 function getCities(){
@@ -112,7 +112,7 @@ const tiles = CITIES.map(([name,tz]) => {
     icon: el.querySelector('.phase i'), label: el.querySelector('.phase span')};
 });
 
-/* ---------- dobór liczby kolumn do dostępnej przestrzeni ---------- */
+/* ---------- pick the column count that fits the available space ---------- */
 function layout(){
   const W = grid.clientWidth, H = grid.clientHeight, n = tiles.length, gap = 12;
   if(!W || !H) return;
