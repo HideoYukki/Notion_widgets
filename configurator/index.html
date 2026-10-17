@@ -115,6 +115,16 @@ const WIDGETS = {
       {type:'range', k:'radius', label:'Corner radius (px)', def:16, min:0, max:60},
       {type:'text', k:'bg', label:'Letterbox (for contain): blur, hex or none', def:'blur', placeholder:'blur'}
     ]
+  },
+  progress: {
+    name:'🏃 Progress platformer', path:'../embed/progress/', height:220,
+    fields:[
+      {type:'select', k:'track', label:'Track', def:'year', options:['year','month','week','day'],
+        hint:'The character walks from left to right as the chosen period passes.'},
+      {type:'text', k:'hour', label:'Fixed hour (0–24, empty = live)', placeholder:'live',
+        hint:'Forces a time of day, e.g. 22 for the night theme and pajamas.'},
+      {type:'range', k:'radius', label:'Corner radius (px)', def:16, min:0, max:60}
+    ]
   }
 };
 

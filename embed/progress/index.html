@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Progress platformer</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;padding:2px;background:transparent;display:flex;flex-direction:column;gap:6px;
+    font-family:ui-monospace,"SF Mono","Cascadia Mono",Consolas,Menlo,monospace;color:#fff}
+  .frame{position:relative;flex:1;min-height:0;border-radius:16px;overflow:hidden;background:#0b1030;
+    container-type:size}
+  canvas{position:absolute;left:0;top:0;display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+  .hud{position:absolute;left:clamp(6px,2.5cqw,14px);top:clamp(6px,4cqh,14px);display:flex;
+    align-items:baseline;gap:clamp(6px,1.6cqw,10px);padding:4px 9px;border-radius:8px;
+    background:rgba(10,14,30,.55);white-space:nowrap;font-weight:800;letter-spacing:.04em}
+  .hud .name{font-size:clamp(9px,min(3.2cqw,7cqh),13px);text-transform:uppercase;opacity:.85}
+  .hud .pct{font-size:clamp(14px,min(6cqw,13cqh),30px);font-variant-numeric:tabular-nums}
+  .demo{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;padding:6px 10px;
+    border-radius:10px;background:#232a36;color:#eef2f8}
+  .demo input[type=range]{flex:1;min-width:120px}
+  .demo select{background:transparent;color:inherit;border:1px solid rgba(255,255,255,.25);
+    border-radius:6px;padding:2px 4px;font:inherit}
+  .demo option{color:#000}
+</style>
+</head>
+<body>
+<div class="frame" id="frame">
+  <canvas id="cv"></canvas>
+  <div class="hud"><span class="name" id="name"></span><span class="pct" id="pct"></span></div>
+</div>
+<div class="demo" id="demo">
+  <select id="dTrack"></select>
+  <label><input type="checkbox" id="dLive" checked> <span id="dLiveTxt"></span></label>
+  <input type="range" id="dHour" min="0" max="24" step="0.25" value="12" aria-label="Hour">
+  <span id="dTime">12:00</span>
+</div>
+
+<script>
+/* ---------- parameters: ?track=year|month|week|day&hour=21.5&radius=16&demo=1 ---------- */
+const Q = new URLSearchParams(location.search);
+const num = (v, d, min, max) => { const n = parseFloat(v); return isFinite(n) ? Math.min(max, Math.max(min, n)) : d; };
+const TRACKS = ['year','month','week','day'];
+let track = TRACKS.includes(Q.get('track')) ? Q.get('track') : 'year';
+let fixedHour = Q.has('hour') ? num(Q.get('hour'), 12, 0, 24) : null;
+const frame = document.getElementById('frame');
+frame.style.borderRadius = num(Q.get('radius'), 16, 0, 200) + 'px';
+
+/* ---------- language ---------- */
+let LOC = (navigator.languages && navigator.languages[0]) || navigator.language || 'en';
+try{ new Intl.DateTimeFormat(LOC); }catch(e){ LOC = 'en'; }   // ignore malformed locale tags
+const LANG = LOC.split('-')[0].toLowerCase();
+const T = {
+  en:{year:'Year',month:'Month',week:'Week',day:'Day',live:'Live'},
+  pl:{year:'Rok',month:'Miesiąc',week:'Tydzień',day:'Dzień',live:'Na żywo'}
+};
+const TX = T[LANG] || T.en;
+
+/* ---------- colors ---------- */
+const rgb = h => [1,3,5].map(i => parseInt(h.slice(i, i+2), 16));
+const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+const css = c => `rgb(${c[0]},${c[1]},${c[2]})`;
+
+/* sky/ground palettes by hour; n = how "night" it is (drives stars, moon, dark clouds) */
+const KF = [
+  [0,   {top:'#0b1030', bot:'#1b2a5c', far:'#16204a', near:'#101a38', grass:'#1d4a34', dirt:'#2a2236', n:1}],
+  [5,   {top:'#0b1030', bot:'#1b2a5c', far:'#16204a', near:'#101a38', grass:'#1d4a34', dirt:'#2a2236', n:1}],
+  [6.5, {top:'#3b4a8c', bot:'#f2a36b', far:'#6a5a9a', near:'#4a4a7a', grass:'#3f8a4f', dirt:'#6b4a3a', n:.4}],
+  [9,   {top:'#4fa3ff', bot:'#bfe6ff', far:'#7fb5d8', near:'#4fa86a', grass:'#5fcf5a', dirt:'#8a5a3a', n:0}],
+  [16,  {top:'#4fa3ff', bot:'#bfe6ff', far:'#7fb5d8', near:'#4fa86a', grass:'#5fcf5a', dirt:'#8a5a3a', n:0}],
+  [18,  {top:'#5a3a8a', bot:'#ff8a4f', far:'#8a4a7a', near:'#5a3a6a', grass:'#4a8a4a', dirt:'#6a4636', n:.5}],
+  [20,  {top:'#0b1030', bot:'#1b2a5c', far:'#16204a', near:'#101a38', grass:'#1d4a34', dirt:'#2a2236', n:1}],
+  [24,  {top:'#0b1030', bot:'#1b2a5c', far:'#16204a', near:'#101a38', grass:'#1d4a34', dirt:'#2a2236', n:1}]
+].map(([h, o]) => [h, {...Object.fromEntries(Object.entries(o).filter(([k]) => k !== 'n').map(([k, v]) => [k, rgb(v)])), n:o.n}]);
+
+function sample(h){
+  let i = 0;
+  while(i < KF.length - 2 && h >= KF[i+1][0]) i++;
+  const [h0, a] = KF[i], [h1, b] = KF[i+1], t = Math.min(1, Math.max(0, (h - h0) / (h1 - h0)));
+  const o = {n: a.n + (b.n - a.n) * t};
+  for(const k of ['top','bot','far','near','grass','dirt']) o[k] = mix(a[k], b[k], t);
+  return o;
+}
+
+/* ---------- character: 8x11 pixel sprite, outfit depends on the time of day ---------- */
+const BODY = [
+  '..hhhh..',
+  '.hhhhhh.',
+  '.ssssss.',
+  '.sesses.',
+  '..ssss..',
+  '.tttttt.',
+  'stttttts',
+  '.tttttt.',
+  '.pppppp.'
+];
+const LEGS = [
+  ['.pp..pp.', '.bb..bb.'],
+  ['..pppp..', '..bbbb..']
+];
+const SKIN = '#f1c27d', EYE = '#1b1b1b';
+const OUTFITS = {
+  morning:{h:'#6b3f1d', t:'#ffd166', p:'#4a6fa5', b:'#5a3a22', g:'#6b3f1d'},
+  day:    {h:'#2f9e44', t:'#3a7bd5', p:'#8d5524', b:'#4a2f1b', g:'#b5651d'},
+  evening:{h:'#c0392b', t:'#e67e22', p:'#3d2c5a', b:'#2a1f3a', g:'#8e1b3a'},
+  night:  {h:'#3a5fcd', t:'#6f8ff0', p:'#6f8ff0', b:'#2a2f5a', g:'#ffffff'}
+};
+const outfitFor = h => h < 5 || h >= 21 ? 'night' : h < 10 ? 'morning' : h < 17 ? 'day' : 'evening';
+
+/* ---------- canvas setup: low-res buffer scaled up with an integer factor ---------- */
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+let W = 0, H = 0, S = 1, horizon = 0, groundH = 0, stars = [], clouds = [];
+
+function rng(seed){ return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+function resize(){
+  const r = frame.getBoundingClientRect();
+  if(!r.width || !r.height) return;
+  S = Math.max(1, Math.round(r.height / 100));
+  W = Math.ceil(r.width / S); H = Math.ceil(r.height / S);
+  cv.width = W; cv.height = H;
+  cv.style.width = W * S + 'px'; cv.style.height = H * S + 'px';
+  groundH = Math.max(14, Math.round(H * .2));
+  horizon = H - groundH;
+  const R = rng(7);
+  stars = Array.from({length: Math.round(W * horizon / 260)}, () => ({x:Math.floor(R() * W), y:Math.floor(R() * (horizon - 8)), p:R() * 6}));
+  clouds = Array.from({length: 4}, (_, i) => ({x:R() * (W + 40), y:6 + R() * horizon * .35, s:1 + Math.floor(R() * 2), v:3 + R() * 4}));
+}
+new ResizeObserver(resize).observe(frame);
+
+/* ---------- progress for the selected track ---------- */
+function now(){
+  const d = new Date();
+  if(fixedHour != null) d.setHours(Math.floor(fixedHour), Math.round((fixedHour % 1) * 60), 0, 0);
+  return d;
+}
+function progress(d){
+  const y = d.getFullYear(), m = d.getMonth();
+  let start, end, ticks = [], name;
+  if(track === 'year'){
+    start = new Date(y, 0, 1); end = new Date(y + 1, 0, 1); name = `${TX.year} ${y}`;
+    for(let k = 1; k < 12; k++) ticks.push((new Date(y, k, 1) - start) / (end - start));
+  } else if(track === 'month'){
+    start = new Date(y, m, 1); end = new Date(y, m + 1, 1);
+    name = d.toLocaleDateString(LOC, {month:'long'});
+    const days = new Date(y, m + 1, 0).getDate();
+    [7, 14, 21, 28].forEach(k => { if(k < days) ticks.push(k / days); });
+  } else if(track === 'week'){
+    const dow = (d.getDay() + 6) % 7;
+    start = new Date(y, m, d.getDate() - dow); end = new Date(y, m, d.getDate() - dow + 7); name = TX.week;
+    for(let k = 1; k < 7; k++) ticks.push(k / 7);
+  } else {
+    start = new Date(y, m, d.getDate()); end = new Date(y, m, d.getDate() + 1);
+    name = d.toLocaleDateString(LOC, {weekday:'long'});
+    for(let k = 1; k < 8; k++) ticks.push(k / 8);
+  }
+  return {p:Math.min(1, Math.max(0, (d - start) / (end - start))), ticks, name};
+}
+
+/* ---------- drawing ---------- */
+const rect = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
+function disc(cx, cy, r, c){
+  ctx.fillStyle = c;
+  for(let dy = -r; dy <= r; dy++){ const w = Math.floor(Math.sqrt(r * r - dy * dy)); ctx.fillRect(cx - w, cy + dy, 2 * w + 1, 1); }
+}
+function hills(base, amp, freq, phase, c){
+  ctx.fillStyle = c;
+  for(let x = 0; x < W; x++){
+    const h = Math.floor(base + amp * (Math.sin(x * freq + phase) + .5 * Math.sin(x * freq * 2.3 + phase * 1.7)));
+    ctx.fillRect(x, horizon - h, 1, h);
+  }
+}
+function sprite(x, y, rows, pal){
+  const key = {h:pal.h, s:SKIN, e:EYE, t:pal.t, p:pal.p, b:pal.b};
+  rows.forEach((row, j) => [...row].forEach((ch, i) => { if(ch !== '.') rect(x + i, y + j, 1, 1, key[ch]); }));
+}
+function accessories(name, x, y, f, pal){
+  if(name === 'morning'){ rect(x + 3, y - 1, 1, 1, pal.h); rect(x + 5, y - 1, 1, 1, pal.h); }
+  if(name === 'day') rect(x - 1, y + 5, 2, 3, pal.g);
+  if(name === 'evening'){ rect(x - 1, y + 5, 1, 4, pal.g); rect(x - 2, y + 6 + f, 1, 3, pal.g); }
+  if(name === 'night'){ rect(x - 1, y + 1, 1, 1, pal.h); rect(x - 2, y + 2, 1, 2, pal.h); rect(x - 3, y + 3 + f, 2, 2, pal.g); }
+}
+function coin(cx, cy, k, t){
+  const narrow = Math.cos(t * 4 + k) > .4, bob = Math.round(Math.sin(t * 3 + k));
+  if(narrow) rect(cx - 1, cy - 2 + bob, 2, 4, '#ffd23f');
+  else { rect(cx - 1, cy - 2 + bob, 2, 4, '#ffd23f'); rect(cx - 2, cy - 1 + bob, 4, 2, '#ffd23f'); }
+  rect(cx - 1, cy - 2 + bob, 1, 1, '#fff6b0');
+}
+
+function draw(t, d, hour, prog){
+  const pal = sample(hour);
+  /* sky: stepped bands for a retro look */
+  for(let y = 0; y < horizon; y += 4) rect(0, y, W, 4, css(mix(pal.top, pal.bot, y / horizon)));
+
+  /* stars */
+  if(pal.n > .05){
+    ctx.fillStyle = '#fff';
+    stars.forEach(s => { ctx.globalAlpha = pal.n * (.55 + .45 * Math.sin(t * 2 + s.p)); ctx.fillRect(s.x, s.y, 1, 1); });
+    ctx.globalAlpha = 1;
+  }
+
+  /* sun and moon travel along an arc */
+  if(hour >= 5.5 && hour <= 18.5){
+    const a = (hour - 5.5) / 13, cx = Math.round(W * (.08 + .84 * a)), cy = Math.round(horizon - 4 - Math.sin(Math.PI * a) * horizon * .7);
+    ctx.globalAlpha = .25; disc(cx, cy, 8, '#ffe066'); ctx.globalAlpha = 1; disc(cx, cy, 5, '#ffe066');
+  }
+  if(hour >= 18 || hour < 6){
+    const a = ((hour - 18 + 24) % 24) / 12, cx = Math.round(W * (.08 + .84 * a)), cy = Math.round(horizon - 4 - Math.sin(Math.PI * a) * horizon * .7);
+    disc(cx, cy, 5, '#f4f1de'); rect(cx - 2, cy - 1, 2, 2, '#d9d4bd'); rect(cx + 1, cy + 2, 1, 1, '#d9d4bd');
+  }
+
+  /* clouds drift slowly */
+  const cc = css(mix([255, 255, 255], [58, 74, 122], pal.n));
+  ctx.globalAlpha = .9;
+  clouds.forEach(c => {
+    const x = ((c.x + t * c.v) % (W + 40)) - 20, s = c.s;
+    rect(x + 2 * s, c.y, 8 * s, 2 * s, cc); rect(x, c.y + 2 * s, 12 * s, 2 * s, cc); rect(x + 4 * s, c.y - 2 * s, 4 * s, 2 * s, cc);
+  });
+  ctx.globalAlpha = 1;
+
+  /* hills and ground */
+  hills(horizon * .30, 7, .045, 1, css(pal.far));
+  hills(horizon * .14, 5, .09, 3, css(pal.near));
+  rect(0, horizon, W, groundH, css(pal.dirt));
+  const dark = css(mix(pal.dirt, [0, 0, 0], .15));
+  for(let y = horizon + 3, r = 0; y < H; y += 4, r++) for(let x = (r % 2) * 4; x < W; x += 8) rect(x, y, 3, 2, dark);
+  rect(0, horizon, W, 2, css(pal.grass));
+  rect(0, horizon, W, 1, css(mix(pal.grass, [255, 255, 255], .25)));
+
+  /* flag at the finish */
+  const fx = W - 9, fy = horizon - 22, wave = Math.floor(t * 3) % 2;
+  rect(fx, fy, 1, 22, '#e8e8e8'); rect(fx - 1, fy - 2, 3, 2, '#ffd23f');
+  for(let i = 0; i < 5; i++) rect(fx + 1, fy + 1 + i, 7 - i + wave, 1, '#e63946');
+
+  /* coins mark the sub-periods; they disappear once collected */
+  const xs = 6, xe = W - 19;
+  prog.ticks.forEach((f, k) => { if(prog.p < f) coin(Math.round(xs + 4 + f * (xe - xs)), horizon - 17, k, t); });
+
+  /* the character walks left to right */
+  const name = outfitFor(hour), o = OUTFITS[name], f = Math.floor(t * 4) % 2;
+  const x = Math.round(xs + prog.p * (xe - xs)), y = horizon - 11;
+  ctx.globalAlpha = .25; rect(x + 1, horizon, 6, 1, '#000'); ctx.globalAlpha = 1;
+  sprite(x, y, BODY.concat(LEGS[f]), o);
+  accessories(name, x, y, f, o);
+}
+
+/* ---------- main loop ---------- */
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const el = {name:document.getElementById('name'), pct:document.getElementById('pct'),
+  hour:document.getElementById('dHour'), time:document.getElementById('dTime')};
+let last = -1e9;
+const pad = n => String(n).padStart(2, '0');
+
+function loop(ts){
+  if(ts - last >= (reduce ? 1000 : 50) && W){
+    last = ts;
+    const d = now(), hour = d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600, prog = progress(d);
+    draw(reduce ? 0 : ts / 1000, d, hour, prog);
+    const pct = (prog.p * 100).toFixed(1) + '%';
+    if(el.pct.textContent !== pct) el.pct.textContent = pct;
+    if(el.name.textContent !== prog.name) el.name.textContent = prog.name;
+    if(fixedHour == null && document.activeElement !== el.hour) el.hour.value = hour;
+    el.time.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  requestAnimationFrame(loop);
+}
+
+/* ---------- demo bar (opt-in with ?demo=1) ---------- */
+const demo = document.getElementById('demo');
+if(Q.get('demo') !== '1') demo.remove();
+else {
+  const sel = document.getElementById('dTrack'), live = document.getElementById('dLive');
+  document.getElementById('dLiveTxt').textContent = TX.live;
+  TRACKS.forEach(k => sel.add(new Option(TX[k], k)));
+  sel.value = track;
+  live.checked = fixedHour == null;
+  sel.addEventListener('change', () => { track = sel.value; });
+  live.addEventListener('change', () => { fixedHour = live.checked ? null : parseFloat(el.hour.value); });
+  el.hour.addEventListener('input', () => { live.checked = false; fixedHour = parseFloat(el.hour.value); });
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
