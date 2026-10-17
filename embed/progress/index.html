@@ -16,8 +16,8 @@
   .hud{position:absolute;left:clamp(6px,2.5cqw,14px);top:clamp(6px,4cqh,14px);display:flex;
     align-items:baseline;gap:clamp(6px,1.6cqw,10px);padding:4px 9px;border-radius:8px;
     background:rgba(10,14,30,.55);white-space:nowrap;font-weight:800;letter-spacing:.04em}
-  .hud .name{font-size:clamp(9px,min(3.2cqw,7cqh),13px);text-transform:uppercase;opacity:.85}
-  .hud .pct{font-size:clamp(14px,min(6cqw,13cqh),30px);font-variant-numeric:tabular-nums}
+  .hud .name{font-size:clamp(10px,min(3.2cqw,7cqh),13px);text-transform:uppercase;opacity:.85}
+  .hud .pct{font-size:clamp(16px,min(6cqw,13cqh),30px);font-variant-numeric:tabular-nums}
   .demo{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;padding:6px 10px;
     border-radius:10px;background:#232a36;color:#eef2f8}
   .demo input[type=range]{flex:1;min-width:120px}
@@ -39,7 +39,7 @@
 </div>
 
 <script>
-/* ---------- parameters: ?track=year|month|week|day&hour=21.5&radius=16&demo=1 ---------- */
+/* ---------- parameters: ?track=year|month|week|day&hour=21.5&radius=16&size=64&demo=1 ---------- */
 const Q = new URLSearchParams(location.search);
 const num = (v, d, min, max) => { const n = parseFloat(v); return isFinite(n) ? Math.min(max, Math.max(min, n)) : d; };
 const TRACKS = ['year','month','week','day'];
@@ -47,6 +47,7 @@ let track = TRACKS.includes(Q.get('track')) ? Q.get('track') : 'year';
 let fixedHour = Q.has('hour') ? num(Q.get('hour'), 12, 0, 24) : null;
 const frame = document.getElementById('frame');
 frame.style.borderRadius = num(Q.get('radius'), 16, 0, 200) + 'px';
+const MIN_CHAR = num(Q.get('size'), 64, 24, 400);   // minimum character height in screen px
 
 /* ---------- language ---------- */
 let LOC = (navigator.languages && navigator.languages[0]) || navigator.language || 'en';
@@ -111,7 +112,7 @@ const outfitFor = h => h < 5 || h >= 21 ? 'night' : h < 10 ? 'morning' : h < 17 
 
 /* ---------- canvas setup: low-res buffer scaled up with an integer factor ---------- */
 const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
-let W = 0, H = 0, S = 1, horizon = 0, groundH = 0, stars = [], clouds = [];
+let W = 0, H = 0, S = 1, K = 1, horizon = 0, groundH = 0, stars = [], clouds = [];
 
 function rng(seed){ return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
   t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -120,14 +121,17 @@ function resize(){
   const r = frame.getBoundingClientRect();
   if(!r.width || !r.height) return;
   S = Math.max(1, Math.round(r.height / 100));
+  /* K enlarges the character, coins, flag and scenery so they stay readable in big blocks */
+  const target = Math.min(Math.max(MIN_CHAR, r.height * .22), r.height * .4);
+  K = Math.max(1, Math.round(target / (11 * S)));
   W = Math.ceil(r.width / S); H = Math.ceil(r.height / S);
   cv.width = W; cv.height = H;
   cv.style.width = W * S + 'px'; cv.style.height = H * S + 'px';
-  groundH = Math.max(14, Math.round(H * .2));
+  groundH = Math.max(14, Math.round(H * .2), 3 * K);
   horizon = H - groundH;
   const R = rng(7);
   stars = Array.from({length: Math.round(W * horizon / 260)}, () => ({x:Math.floor(R() * W), y:Math.floor(R() * (horizon - 8)), p:R() * 6}));
-  clouds = Array.from({length: 4}, (_, i) => ({x:R() * (W + 40), y:6 + R() * horizon * .35, s:1 + Math.floor(R() * 2), v:3 + R() * 4}));
+  clouds = Array.from({length: 4}, () => ({x:R() * (W + 40 * K), y:(6 + R() * horizon * .35), s:1 + Math.floor(R() * 2), v:3 + R() * 4}));
 }
 new ResizeObserver(resize).observe(frame);
 
@@ -162,6 +166,8 @@ function progress(d){
 
 /* ---------- drawing ---------- */
 const rect = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); };
+/* rect in sprite units: offsets and sizes are multiplied by K */
+const krect = (x, y, dx, dy, w, h, c) => rect(x + dx * K, y + dy * K, w * K, h * K, c);
 function disc(cx, cy, r, c){
   ctx.fillStyle = c;
   for(let dy = -r; dy <= r; dy++){ const w = Math.floor(Math.sqrt(r * r - dy * dy)); ctx.fillRect(cx - w, cy + dy, 2 * w + 1, 1); }
@@ -169,25 +175,25 @@ function disc(cx, cy, r, c){
 function hills(base, amp, freq, phase, c){
   ctx.fillStyle = c;
   for(let x = 0; x < W; x++){
-    const h = Math.floor(base + amp * (Math.sin(x * freq + phase) + .5 * Math.sin(x * freq * 2.3 + phase * 1.7)));
+    const h = Math.floor(base + amp * K * (Math.sin(x * freq / K + phase) + .5 * Math.sin(x * freq / K * 2.3 + phase * 1.7)));
     ctx.fillRect(x, horizon - h, 1, h);
   }
 }
 function sprite(x, y, rows, pal){
   const key = {h:pal.h, s:SKIN, e:EYE, t:pal.t, p:pal.p, b:pal.b};
-  rows.forEach((row, j) => [...row].forEach((ch, i) => { if(ch !== '.') rect(x + i, y + j, 1, 1, key[ch]); }));
+  rows.forEach((row, j) => [...row].forEach((ch, i) => { if(ch !== '.') krect(x, y, i, j, 1, 1, key[ch]); }));
 }
 function accessories(name, x, y, f, pal){
-  if(name === 'morning'){ rect(x + 3, y - 1, 1, 1, pal.h); rect(x + 5, y - 1, 1, 1, pal.h); }
-  if(name === 'day') rect(x - 1, y + 5, 2, 3, pal.g);
-  if(name === 'evening'){ rect(x - 1, y + 5, 1, 4, pal.g); rect(x - 2, y + 6 + f, 1, 3, pal.g); }
-  if(name === 'night'){ rect(x - 1, y + 1, 1, 1, pal.h); rect(x - 2, y + 2, 1, 2, pal.h); rect(x - 3, y + 3 + f, 2, 2, pal.g); }
+  if(name === 'morning'){ krect(x, y, 3, -1, 1, 1, pal.h); krect(x, y, 5, -1, 1, 1, pal.h); }
+  if(name === 'day') krect(x, y, -1, 5, 2, 3, pal.g);
+  if(name === 'evening'){ krect(x, y, -1, 5, 1, 4, pal.g); krect(x, y, -2, 6 + f, 1, 3, pal.g); }
+  if(name === 'night'){ krect(x, y, -1, 1, 1, 1, pal.h); krect(x, y, -2, 2, 1, 2, pal.h); krect(x, y, -3, 3 + f, 2, 2, pal.g); }
 }
 function coin(cx, cy, k, t){
   const narrow = Math.cos(t * 4 + k) > .4, bob = Math.round(Math.sin(t * 3 + k));
-  if(narrow) rect(cx - 1, cy - 2 + bob, 2, 4, '#ffd23f');
-  else { rect(cx - 1, cy - 2 + bob, 2, 4, '#ffd23f'); rect(cx - 2, cy - 1 + bob, 4, 2, '#ffd23f'); }
-  rect(cx - 1, cy - 2 + bob, 1, 1, '#fff6b0');
+  krect(cx, cy, -1, -2 + bob, 2, 4, '#ffd23f');
+  if(!narrow) krect(cx, cy, -2, -1 + bob, 4, 2, '#ffd23f');
+  krect(cx, cy, -1, -2 + bob, 1, 1, '#fff6b0');
 }
 
 function draw(t, d, hour, prog){
@@ -205,19 +211,19 @@ function draw(t, d, hour, prog){
   /* sun and moon travel along an arc */
   if(hour >= 5.5 && hour <= 18.5){
     const a = (hour - 5.5) / 13, cx = Math.round(W * (.08 + .84 * a)), cy = Math.round(horizon - 4 - Math.sin(Math.PI * a) * horizon * .7);
-    ctx.globalAlpha = .25; disc(cx, cy, 8, '#ffe066'); ctx.globalAlpha = 1; disc(cx, cy, 5, '#ffe066');
+    ctx.globalAlpha = .25; disc(cx, cy, 8 * K, '#ffe066'); ctx.globalAlpha = 1; disc(cx, cy, 5 * K, '#ffe066');
   }
   if(hour >= 18 || hour < 6){
     const a = ((hour - 18 + 24) % 24) / 12, cx = Math.round(W * (.08 + .84 * a)), cy = Math.round(horizon - 4 - Math.sin(Math.PI * a) * horizon * .7);
-    disc(cx, cy, 5, '#f4f1de'); rect(cx - 2, cy - 1, 2, 2, '#d9d4bd'); rect(cx + 1, cy + 2, 1, 1, '#d9d4bd');
+    disc(cx, cy, 5 * K, '#f4f1de'); krect(cx, cy, -2, -1, 2, 2, '#d9d4bd'); krect(cx, cy, 1, 2, 1, 1, '#d9d4bd');
   }
 
   /* clouds drift slowly */
   const cc = css(mix([255, 255, 255], [58, 74, 122], pal.n));
   ctx.globalAlpha = .9;
   clouds.forEach(c => {
-    const x = ((c.x + t * c.v) % (W + 40)) - 20, s = c.s;
-    rect(x + 2 * s, c.y, 8 * s, 2 * s, cc); rect(x, c.y + 2 * s, 12 * s, 2 * s, cc); rect(x + 4 * s, c.y - 2 * s, 4 * s, 2 * s, cc);
+    const x = ((c.x + t * c.v * K) % (W + 40 * K)) - 20 * K, s = c.s;
+    krect(x, c.y, 2 * s, 0, 8 * s, 2 * s, cc); krect(x, c.y, 0, 2 * s, 12 * s, 2 * s, cc); krect(x, c.y, 4 * s, -2 * s, 4 * s, 2 * s, cc);
   });
   ctx.globalAlpha = 1;
 
@@ -231,18 +237,18 @@ function draw(t, d, hour, prog){
   rect(0, horizon, W, 1, css(mix(pal.grass, [255, 255, 255], .25)));
 
   /* flag at the finish */
-  const fx = W - 9, fy = horizon - 22, wave = Math.floor(t * 3) % 2;
-  rect(fx, fy, 1, 22, '#e8e8e8'); rect(fx - 1, fy - 2, 3, 2, '#ffd23f');
-  for(let i = 0; i < 5; i++) rect(fx + 1, fy + 1 + i, 7 - i + wave, 1, '#e63946');
+  const fx = W - 9 * K, fy = horizon - 16 * K, wave = Math.floor(t * 3) % 2;
+  krect(fx, fy, 0, 0, 1, 16, '#e8e8e8'); krect(fx, fy, -1, -2, 3, 2, '#ffd23f');
+  for(let i = 0; i < 5; i++) krect(fx, fy, 1, 1 + i, 7 - i + wave, 1, '#e63946');
 
   /* coins mark the sub-periods; they disappear once collected */
-  const xs = 6, xe = W - 19;
-  prog.ticks.forEach((f, k) => { if(prog.p < f) coin(Math.round(xs + 4 + f * (xe - xs)), horizon - 17, k, t); });
+  const xs = 4 * K, xe = W - 19 * K;
+  prog.ticks.forEach((f, k) => { if(prog.p < f) coin(Math.round(xs + 4 * K + f * (xe - xs)), horizon - 8 * K, k, t); });
 
   /* the character walks left to right */
   const name = outfitFor(hour), o = OUTFITS[name], f = Math.floor(t * 4) % 2;
-  const x = Math.round(xs + prog.p * (xe - xs)), y = horizon - 11;
-  ctx.globalAlpha = .25; rect(x + 1, horizon, 6, 1, '#000'); ctx.globalAlpha = 1;
+  const x = Math.round(xs + prog.p * (xe - xs)), y = horizon - 11 * K;
+  ctx.globalAlpha = .25; krect(x, horizon, 1, 0, 6, 1, '#000'); ctx.globalAlpha = 1;
   sprite(x, y, BODY.concat(LEGS[f]), o);
   accessories(name, x, y, f, o);
 }
