@@ -4,17 +4,17 @@ Ready-to-use widgets for Notion. No sign-up, no coding: copy the link, paste it,
 
 ## Widgets
 
-Use the **[configurator](https://hideoyukki.github.io/widgets/)** to tweak a widget with a live preview and get a ready-to-paste link.
+Use the **[configurator](https://hideoyukki.github.io/Notion_widgets/)** to tweak a widget with a live preview and get a ready-to-paste link.
 
 | Widget | Description | Link |
 |--------|-------------|------|
-| 🌤️ Weather | 3-day forecast, auto-detects city, language and units | `https://hideoyukki.github.io/widgets/embed/weather/` |
-| 🕐 World clock | Live clocks for up to 8 cities with day/night icons. Pick cities via `?cities=Name\|Europe/Zone`. | `https://hideoyukki.github.io/widgets/embed/clock/` |
-| 🖼️ Parallax image | Fits any image to the block and adds a smooth parallax effect. Set it via `?src=IMAGE_URL`. | `https://hideoyukki.github.io/widgets/embed/parallax/?src={IMAGE_URL}` |
+| 🌤️ Weather | 3-day forecast, auto-detects city, language and units | `https://hideoyukki.github.io/Notion_widgets/embed/weather/` |
+| 🕐 World clock | Live clocks for up to 8 cities with day/night icons. Pick cities via `?cities=Name\|Europe/Zone`. | `https://hideoyukki.github.io/Notion_widgets/embed/clock/` |
+| 🖼️ Parallax image | Fits any image to the block and adds a smooth parallax effect. Set it via `?src=IMAGE_URL`. | `https://hideoyukki.github.io/Notion_widgets/embed/parallax/?src={IMAGE_URL}` |
 
 ## Colors
 
-Add parameters to any widget link (hex without `#`): `color` (background), `text` (optional), `accent` (optional).
+Add parameters to the Weather and World clock links (hex without `#`): `color` (background), `text` (optional), `accent` (optional).
 
 `.../embed/clock/?color=4E2B3C&accent=F2B8CF`
 
