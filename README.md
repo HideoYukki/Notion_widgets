@@ -4,7 +4,7 @@ Ready-to-use widgets for Notion. No sign-up, no coding: copy the link, paste it,
 
 ## Widgets
 
-Use the **[configurator](https://hideoyukki.github.io/Notion_widgets/)** to tweak a widget with a live preview and get a ready-to-paste link.
+Use the **[configurator](https://hideoyukki.github.io/Notion_widgets/configurator)** to tweak a widget with a live preview and get a ready-to-paste link.
 
 | Widget | Description | Link |
 |--------|-------------|------|
