@@ -46,7 +46,7 @@
   .day .rain{font-size:clamp(9px,min(10cqw,11cqh),13px);color:var(--muted)}
   @container (max-height:92px){.day .rain{display:none}}
 
-  /* vertical layout for a narrow/tall block */
+  /* układ pionowy dla wąskiego/wysokiego bloku */
   .banner[data-layout="col"] .inner{flex-direction:column}
   .banner[data-layout="col"] .now{flex:0 0 38%;border-right:0;border-bottom:1px solid var(--line);
     padding:0 0 clamp(6px,2cqh,14px)}
@@ -73,7 +73,7 @@
 <div class="banner" id="banner"><div class="inner"><div class="status">…</div></div></div>
 
 <script>
-/* ---------- colors from the URL: ?color=4E2B3C&text=FBF3F7&accent=F2B8CF ---------- */
+/* ---------- kolory z adresu: ?color=4E2B3C&text=FBF3F7&accent=F2B8CF ---------- */
 const Q = new URLSearchParams(location.search);
 const hex = v => { v=(v||'').replace(/^#/,'').trim(); if(/^[0-9a-f]{3}$/i.test(v)) v=v.replace(/./g,'$&$&'); return /^[0-9a-f]{6}$/i.test(v)?'#'+v:null; };
 (function(){
@@ -88,7 +88,7 @@ const hex = v => { v=(v||'').replace(/^#/,'').trim(); if(/^[0-9a-f]{3}$/i.test(v
   if(ac) s.setProperty('--accent',ac);
 })();
 
-/* ---------- language and units ---------- */
+/* ---------- język i jednostki ---------- */
 const LOC = (navigator.languages && navigator.languages[0]) || navigator.language || 'en';
 const LANG = LOC.split('-')[0].toLowerCase();
 const REGION = (LOC.split('-')[1] || '').toUpperCase();
@@ -105,7 +105,7 @@ const T = {
 };
 const TX = T[LANG] || T.en;
 
-/* ---------- icons ---------- */
+/* ---------- ikony ---------- */
 const CLOUD = (f='#F1E8ED') => `<path d="M18 46a8 8 0 0 1 1-16 12 12 0 0 1 23-3 9.5 9.5 0 0 1 3 19z" fill="${f}" stroke="rgba(0,0,0,.12)" stroke-width="1"/>`;
 const SUN = (x,y,s=1) => {
   let r=''; for(let a=0;a<360;a+=45) r+=`<line x1="0" y1="-14" x2="0" y2="-19" transform="rotate(${a})"/>`;
@@ -136,7 +136,7 @@ function info(c){
   return {t:'—',i:'cloudy'};
 }
 
-/* ---------- location from IP (no permission prompt) ---------- */
+/* ---------- lokalizacja z IP (bez pytania o zgodę) ---------- */
 async function getJSON(url){
   const r = await fetch(url);
   if(!r.ok) throw new Error('HTTP '+r.status);
@@ -164,7 +164,7 @@ async function localCityName(loc){
 
 const cap = s => s ? s.charAt(0).toUpperCase()+s.slice(1) : s;
 
-/* ---------- horizontal / vertical layout ---------- */
+/* ---------- układ poziomy / pionowy ---------- */
 function setLayout(){
   const b = document.getElementById('banner');
   const w = b.clientWidth, h = b.clientHeight;

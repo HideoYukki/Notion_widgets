@@ -30,7 +30,7 @@
 const Q = new URLSearchParams(location.search);
 const num = (v, d, min, max) => { const n = parseFloat(v); return isFinite(n) ? Math.min(max, Math.max(min, n)) : d; };
 
-/* ---------- parameters ---------- */
+/* ---------- parametry ---------- */
 let SRC = Q.get('src') || '';
 if(SRC && !/^https?:\/\//i.test(SRC)){ try{ SRC = decodeURIComponent(SRC); }catch(e){} }
 const FIT = ['cover','contain','fill'].includes(Q.get('fit')) ? Q.get('fit') : 'cover';
@@ -48,7 +48,7 @@ function message(html){ frame.innerHTML = '<div class="msg"><div>' + html + '</d
 if(!SRC || !/^https?:\/\//i.test(SRC)){
   message('Add an image link to the widget address:<br><code>?src=https://…/image.jpg</code>');
 } else {
-  const AMP = STRENGTH / 100 * 0.10;                  // max shift as a fraction of the frame size
+  const AMP = STRENGTH / 100 * 0.10;                  // maks. przesunięcie jako ułamek rozmiaru okna
   const objPos = POS[0] + '% ' + POS[1] + '%';
   const makeImg = fit => {
     const i = new Image();
@@ -79,7 +79,7 @@ if(!SRC || !/^https?:\/\//i.test(SRC)){
   main.addEventListener('error', () => message('Could not load the image.<br>Check the link in <code>src</code>.'));
   layers.forEach(l => { l.el.querySelector('img').src = SRC; });
 
-  /* ---------- motion ---------- */
+  /* ---------- ruch ---------- */
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const usePointer = MODE === 'both' || MODE === 'pointer';
   const useAuto = MODE === 'both' || MODE === 'auto';
