@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Tic-tac-toe</title>
+<style>
+  :root{--card:#ffffff;--text:#1c2430;--accent:#3b6fd4}
+  @media (prefers-color-scheme:dark){
+    :root{--card:#232a36;--text:#eef2f8;--accent:#7aa7ff}
+  }
+  :root{
+    --muted:color-mix(in srgb,var(--text) 62%,transparent);
+    --line:color-mix(in srgb,var(--text) 14%,transparent);
+    --tile:color-mix(in srgb,var(--text) 8%,var(--card));
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;padding:2px;background:transparent;color:var(--text);
+    font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+
+  .outer{container-type:size;width:100%;height:100%}
+  .card{width:100%;height:100%;border-radius:16px;background:var(--card);
+    box-shadow:inset 0 0 0 1px var(--line);overflow:hidden;display:flex;flex-direction:column;
+    gap:clamp(6px,2.5cqmin,16px);padding:clamp(8px,3.5cqmin,20px)}
+  @container (min-aspect-ratio:13/10){.card{flex-direction:row;align-items:stretch}}
+
+  .boardwrap{flex:1;min-width:0;min-height:0;container-type:size;display:grid;place-items:center}
+  .board{width:min(100cqw,100cqh);height:min(100cqw,100cqh);display:grid;gap:max(2px,1cqmin);
+    grid-template:repeat(3,1fr) / repeat(3,1fr);background:var(--line);border-radius:12px;overflow:hidden}
+  .cell{border:0;padding:0;margin:0;background:var(--card);cursor:pointer;display:grid;place-items:center;
+    color:var(--text);transition:background .15s}
+  .cell:hover:not(:disabled){background:var(--tile)}
+  .cell:disabled{cursor:default}
+  .cell.win{background:color-mix(in srgb,var(--accent) 28%,var(--card))}
+  .cell svg{width:68%;height:68%;overflow:visible}
+  .cell svg *{fill:none;stroke-width:9;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:0;
+    animation:draw .28s ease-out}
+  .x *{stroke:var(--text)}
+  .o *{stroke:var(--accent)}
+  @keyframes draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+
+  .panel{flex:none;display:flex;flex-direction:column;justify-content:center;gap:clamp(6px,2cqmin,12px);
+    align-items:center;text-align:center}
+  @container (min-aspect-ratio:13/10){.panel{width:38%;max-width:260px}}
+  .status{font-weight:800;font-size:clamp(14px,min(4.4cqw,9cqh),24px)}
+  .score{display:flex;gap:clamp(8px,2.4cqw,16px);font-size:clamp(11px,min(3cqw,6cqh),15px);color:var(--muted);
+    font-variant-numeric:tabular-nums}
+  .score b{color:var(--text);font-size:1.4em}
+  button.new{font:inherit;cursor:pointer;border:0;border-radius:12px;padding:.5em 1.2em;font-weight:700;
+    font-size:clamp(12px,min(3.4cqw,7cqh),16px);background:var(--accent);color:var(--card)}
+  @media (prefers-reduced-motion:reduce){.cell svg *{animation:none}}
+</style>
+</head>
+<body>
+<div class="outer"><div class="card">
+  <div class="boardwrap"><div class="board" id="board"></div></div>
+  <div class="panel">
+    <div class="status" id="status"></div>
+    <div class="score" id="score"></div>
+    <button class="new" id="new"></button>
+  </div>
+</div></div>
+
+<script>
+/* ---------- colors from the URL: ?color=4E2B3C&text=FBF3F7&accent=F2B8CF ---------- */
+const Q = new URLSearchParams(location.search);
+const hex = v => { v=(v||'').replace(/^#/,'').trim(); if(/^[0-9a-f]{3}$/i.test(v)) v=v.replace(/./g,'$&$&'); return /^[0-9a-f]{6}$/i.test(v)?'#'+v:null; };
+(function(){
+  const bg=hex(Q.get('color')), tx=hex(Q.get('text')), ac=hex(Q.get('accent')), s=document.documentElement.style;
+  if(bg){
+    const n=parseInt(bg.slice(1),16), lum=(.299*(n>>16&255)+.587*(n>>8&255)+.114*(n&255))/255;
+    s.setProperty('--card',bg);
+    s.setProperty('--text',lum<.55?'#f6eef2':'#1c2430');
+    s.setProperty('--accent','color-mix(in srgb, var(--text) 78%, var(--card))');
+  }
+  if(tx) s.setProperty('--text',tx);
+  if(ac) s.setProperty('--accent',ac);
+})();
+
+/* ---------- language ---------- */
+let LOC = (navigator.languages && navigator.languages[0]) || navigator.language || 'en';
+try{ new Intl.DateTimeFormat(LOC); }catch(e){ LOC = 'en'; }
+const LANG = LOC.split('-')[0].toLowerCase();
+const T = {
+  en:{you:'You',bot:'Bot',draw:'Draw',yourTurn:'Your turn',thinking:'Bot is thinking…',youWin:'You win!',botWins:'Bot wins',
+      turn:'turn',wins:'wins!',tie:"It's a draw",again:'New game'},
+  pl:{you:'Ty',bot:'Bot',draw:'Remis',yourTurn:'Twój ruch',thinking:'Bot myśli…',youWin:'Wygrywasz!',botWins:'Wygrywa bot',
+      turn:'ruch',wins:'wygrywa!',tie:'Remis',again:'Nowa gra'},
+  de:{you:'Du',bot:'Bot',draw:'Unent.',yourTurn:'Du bist dran',thinking:'Bot denkt…',youWin:'Du gewinnst!',botWins:'Bot gewinnt',
+      turn:'ist dran',wins:'gewinnt!',tie:'Unentschieden',again:'Neues Spiel'},
+  es:{you:'Tú',bot:'Bot',draw:'Empate',yourTurn:'Tu turno',thinking:'El bot piensa…',youWin:'¡Ganas!',botWins:'Gana el bot',
+      turn:'turno',wins:'¡gana!',tie:'Empate',again:'Nueva partida'},
+  fr:{you:'Vous',bot:'Bot',draw:'Nul',yourTurn:'À vous',thinking:'Le bot réfléchit…',youWin:'Vous gagnez !',botWins:'Le bot gagne',
+      turn:'joue',wins:'gagne !',tie:'Match nul',again:'Nouvelle partie'}
+};
+const TX = T[LANG] || T.en;
+
+/* ---------- parameters: ?mode=bot|2p&level=easy|medium|hard&first=you|bot|alt ---------- */
+const MODE = Q.get('mode') === '2p' ? '2p' : 'bot';
+const LEVEL = ['easy','medium','hard'].includes(Q.get('level')) ? Q.get('level') : 'medium';
+const FIRST = ['you','bot','alt'].includes(Q.get('first')) ? Q.get('first') : 'you';
+
+const LINES = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+const winnerOf = b => { for(const l of LINES) if(b[l[0]] && b[l[0]] === b[l[1]] && b[l[0]] === b[l[2]]) return {p:b[l[0]], line:l}; return null; };
+const rnd = n => { const a = new Uint32Array(1), lim = Math.floor(4294967296 / n) * n;
+  do crypto.getRandomValues(a); while(a[0] >= lim); return a[0] % n; };
+
+/* minimax: bot plays O, human plays X; faster wins and slower losses score higher */
+function minimax(b, player, depth){
+  const w = winnerOf(b);
+  if(w) return w.p === 'O' ? 10 - depth : depth - 10;
+  if(b.every(Boolean)) return 0;
+  let best = player === 'O' ? -Infinity : Infinity;
+  for(let i = 0; i < 9; i++){
+    if(b[i]) continue;
+    b[i] = player;
+    const s = minimax(b, player === 'O' ? 'X' : 'O', depth + 1);
+    b[i] = '';
+    best = player === 'O' ? Math.max(best, s) : Math.min(best, s);
+  }
+  return best;
+}
+function botMove(b){
+  const free = b.map((v, i) => v ? -1 : i).filter(i => i >= 0);
+  const randomPick = () => free[rnd(free.length)];
+  if(LEVEL === 'easy' || (LEVEL === 'medium' && rnd(100) < 40)) return randomPick();
+  let bestScore = -Infinity, moves = [];
+  free.forEach(i => {
+    b[i] = 'O';
+    const s = minimax(b, 'X', 1);
+    b[i] = '';
+    if(s > bestScore){ bestScore = s; moves = [i]; } else if(s === bestScore) moves.push(i);
+  });
+  return moves[rnd(moves.length)];
+}
+
+/* ---------- game state ---------- */
+const $ = id => document.getElementById(id);
+const boardEl = $('board'), statusEl = $('status'), scoreEl = $('score'), newBtn = $('new');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const MARK = {
+  X:'<svg class="x" viewBox="0 0 100 100"><path pathLength="1" d="M18 18L82 82"/><path pathLength="1" d="M82 18L18 82"/></svg>',
+  O:'<svg class="o" viewBox="0 0 100 100"><circle pathLength="1" cx="50" cy="50" r="33"/></svg>'
+};
+let board, turn, over, score = {X:0, O:0, D:0}, games = 0, busy;
+
+const cells = Array.from({length: 9}, (_, i) => {
+  const c = document.createElement('button');
+  c.className = 'cell'; c.type = 'button'; c.setAttribute('aria-label', 'Cell ' + (i + 1));
+  c.addEventListener('click', () => play(i));
+  boardEl.appendChild(c);
+  return c;
+});
+newBtn.textContent = TX.again;
+newBtn.addEventListener('click', start);
+
+function labels(){ return MODE === 'bot' ? {X:TX.you, O:TX.bot} : {X:'X', O:'O'}; }
+function render(win){
+  cells.forEach((c, i) => {
+    c.innerHTML = board[i] ? MARK[board[i]] : '';
+    c.disabled = over || !!board[i] || busy;
+    c.classList.toggle('win', !!(win && win.line.includes(i)));
+  });
+  const L = labels();
+  scoreEl.innerHTML = `<span>${L.X} <b>${score.X}</b></span><span>${TX.draw} <b>${score.D}</b></span><span>${L.O} <b>${score.O}</b></span>`;
+}
+function status(text){ statusEl.textContent = text; }
+
+function start(){
+  board = Array(9).fill(''); over = false; busy = false;
+  const botFirst = MODE === 'bot' && (FIRST === 'bot' || (FIRST === 'alt' && games % 2 === 1));
+  const oFirst = MODE === '2p' && FIRST === 'alt' && games % 2 === 1;
+  turn = botFirst || oFirst ? 'O' : 'X';
+  games++;
+  render();
+  next();
+}
+function next(){
+  if(MODE === 'bot'){
+    if(turn === 'X'){ status(TX.yourTurn); return; }
+    busy = true; status(TX.thinking); render();
+    setTimeout(() => { busy = false; place(botMove(board)); }, reduce ? 0 : 450);
+  } else {
+    status(`${turn} ${TX.turn}`);
+  }
+}
+function play(i){
+  if(over || busy || board[i]) return;
+  if(MODE === 'bot' && turn !== 'X') return;
+  place(i);
+}
+function place(i){
+  board[i] = turn;
+  const w = winnerOf(board);
+  if(w){
+    over = true; score[w.p]++;
+    status(MODE === 'bot' ? (w.p === 'X' ? TX.youWin : TX.botWins) : `${w.p} ${TX.wins}`);
+    render(w); return;
+  }
+  if(board.every(Boolean)){ over = true; score.D++; status(TX.tie); render(); return; }
+  turn = turn === 'X' ? 'O' : 'X';
+  render(); next();
+}
+start();
+</script>
+</body>
+</html>

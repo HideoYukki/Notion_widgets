@@ -125,6 +125,57 @@ const WIDGETS = {
         hint:'Forces a time of day, e.g. 22 for the night theme and pajamas.'},
       {type:'range', k:'radius', label:'Corner radius (px)', def:16, min:0, max:60}
     ]
+  },
+  minesweeper: {
+    name:'💣 Minesweeper', path:'../embed/minesweeper/', height:380,
+    fields:[
+      {type:'select', k:'level', label:'Level', def:'beginner', options:['beginner','intermediate','expert'],
+        hint:'Click to open, right-click or long-press to flag. On touch screens you can also use the flag button.'},
+      {type:'text', k:'cols', label:'Custom columns (5–40)', placeholder:'from level'},
+      {type:'text', k:'rows', label:'Custom rows (5–30)', placeholder:'from level'},
+      {type:'text', k:'mines', label:'Custom mines', placeholder:'from level',
+        hint:'Custom size overrides the level. Without a mine count, about 15% of the cells are mines.'},
+      ...COLORS.map(c => ({type:'color', ...c}))
+    ]
+  },
+  tictactoe: {
+    name:'⭕ Tic-tac-toe', path:'../embed/tictactoe/', height:300,
+    fields:[
+      {type:'select', k:'mode', label:'Mode', def:'bot', options:['bot','2p'], hint:'bot = you vs the computer, 2p = two players on one screen.'},
+      {type:'select', k:'level', label:'Bot level', def:'medium', options:['easy','medium','hard'], hint:'Hard never loses.'},
+      {type:'select', k:'first', label:'Who starts', def:'you', options:['you','bot','alt'], hint:'alt = alternate every game.'},
+      ...COLORS.map(c => ({type:'color', ...c}))
+    ]
+  },
+  dice: {
+    name:'🎲 Dice', path:'../embed/dice/', height:220,
+    fields:[
+      {type:'text', k:'dice', label:'Dice', def:'2d6', placeholder:'2d6',
+        hint:'Notation like 2d6, 3d8 or d20 (1–10 dice, 2–100 sides). Tap the widget to roll.'},
+      ...COLORS.map(c => ({type:'color', ...c}))
+    ]
+  },
+  coin: {
+    name:'🪙 Coin flip', path:'../embed/coin/', height:260,
+    fields:[
+      {type:'text', k:'a', label:'Front label', placeholder:'Heads'},
+      {type:'text', k:'b', label:'Back label', placeholder:'Tails',
+        hint:'Leave empty for Heads/Tails in the viewer\'s language. Tap the coin to flip.'},
+      ...COLORS.map(c => ({type:'color', ...c}))
+    ]
+  },
+  picker: {
+    name:'🎡 Random picker', path:'../embed/picker/', height:280,
+    fields:[
+      {type:'textarea', k:'items', label:'Items (one per line)', max:200, value:'Pizza\nSushi\nTacos\nSalad\nBurger',
+        hint:'Commas inside an item are not supported.'},
+      {type:'select', k:'mode', label:'Mode', def:'pick', options:['pick','teams']},
+      {type:'range', k:'pick', label:'Winners to pick (pick mode)', def:1, min:1, max:10},
+      {type:'range', k:'teams', label:'Number of teams (teams mode)', def:2, min:2, max:8},
+      {type:'select', k:'repeat', label:'Repeat winners', def:'on', options:['on','off'],
+        hint:'off = a drawn item leaves the pool until you press Reset.'},
+      ...COLORS.map(c => ({type:'color', ...c}))
+    ]
   }
 };
 

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Dice</title>
+<style>
+  :root{--card:#ffffff;--text:#1c2430;--accent:#3b6fd4}
+  @media (prefers-color-scheme:dark){
+    :root{--card:#232a36;--text:#eef2f8;--accent:#7aa7ff}
+  }
+  :root{
+    --muted:color-mix(in srgb,var(--text) 62%,transparent);
+    --line:color-mix(in srgb,var(--text) 14%,transparent);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;padding:2px;background:transparent;color:var(--text);
+    font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+
+  .card{container-type:size;width:100%;height:100%;border-radius:16px;background:var(--card);
+    box-shadow:inset 0 0 0 1px var(--line);overflow:hidden;cursor:pointer;outline:none;
+    display:flex;flex-direction:column;padding:clamp(8px,3cqmin,18px);gap:clamp(4px,2cqh,10px)}
+  .card:focus-visible{box-shadow:inset 0 0 0 2px var(--accent)}
+  .tray{flex:1;min-height:0;display:flex;flex-wrap:wrap;align-content:center;justify-content:center;gap:var(--g,12px)}
+
+  .die{width:var(--s);height:var(--s);border-radius:calc(var(--s) * .2);flex:none;position:relative;
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:calc(var(--s) * .44);
+    font-variant-numeric:tabular-nums;background:var(--accent);color:var(--card);
+    box-shadow:0 3px 8px rgba(0,0,0,.2),inset 0 -4px 0 rgba(0,0,0,.14)}
+  .die small{position:absolute;bottom:6%;font-size:calc(var(--s) * .13);font-weight:700;opacity:.7;letter-spacing:.04em}
+  .die.d6{background:#fff;color:#1c2430;box-shadow:0 3px 8px rgba(0,0,0,.2),inset 0 0 0 1px rgba(0,0,0,.12),inset 0 -4px 0 rgba(0,0,0,.08)}
+  .pips{display:grid;grid-template:repeat(3,1fr) / repeat(3,1fr);width:72%;height:72%}
+  .pips i{display:block;width:62%;height:62%;margin:auto;border-radius:50%}
+  .pips i.on{background:#1c2430}
+  .die.max{box-shadow:0 0 0 3px #f5c542,0 3px 10px rgba(0,0,0,.25)}
+  .die.min{box-shadow:0 0 0 3px #e5484d,0 3px 10px rgba(0,0,0,.25)}
+  .die.rolling{animation:tumble .32s linear infinite}
+  @keyframes tumble{
+    0%{transform:rotate(0) translateY(0)}
+    25%{transform:rotate(14deg) translateY(-6%)}
+    50%{transform:rotate(-10deg) translateY(0)}
+    75%{transform:rotate(8deg) translateY(-4%)}
+    100%{transform:rotate(0) translateY(0)}}
+
+  .info{flex:none;text-align:center;color:var(--muted);font-size:clamp(11px,min(3.2cqw,7cqh),16px);min-height:1.4em}
+  .info b{color:var(--text);font-size:1.7em;font-weight:800;font-variant-numeric:tabular-nums}
+  @media (prefers-reduced-motion:reduce){.die.rolling{animation:none}}
+</style>
+</head>
+<body>
+<div class="card" id="card" tabindex="0" role="button">
+  <div class="tray" id="tray"></div>
+  <div class="info" id="info"></div>
+</div>
+
+<script>
+/* ---------- colors from the URL: ?color=4E2B3C&text=FBF3F7&accent=F2B8CF ---------- */
+const Q = new URLSearchParams(location.search);
+const hex = v => { v=(v||'').replace(/^#/,'').trim(); if(/^[0-9a-f]{3}$/i.test(v)) v=v.replace(/./g,'$&$&'); return /^[0-9a-f]{6}$/i.test(v)?'#'+v:null; };
+(function(){
+  const bg=hex(Q.get('color')), tx=hex(Q.get('text')), ac=hex(Q.get('accent')), s=document.documentElement.style;
+  if(bg){
+    const n=parseInt(bg.slice(1),16), lum=(.299*(n>>16&255)+.587*(n>>8&255)+.114*(n&255))/255;
+    s.setProperty('--card',bg);
+    s.setProperty('--text',lum<.55?'#f6eef2':'#1c2430');
+    s.setProperty('--accent','color-mix(in srgb, var(--text) 78%, var(--card))');
+  }
+  if(tx) s.setProperty('--text',tx);
+  if(ac) s.setProperty('--accent',ac);
+})();
+
+/* ---------- language ---------- */
+let LOC = (navigator.languages && navigator.languages[0]) || navigator.language || 'en';
+try{ new Intl.DateTimeFormat(LOC); }catch(e){ LOC = 'en'; }
+const LANG = LOC.split('-')[0].toLowerCase();
+const T = {
+  en:{tap:'Tap to roll',total:'Total'},
+  pl:{tap:'Kliknij, aby rzucić',total:'Suma'},
+  de:{tap:'Zum Würfeln tippen',total:'Summe'},
+  es:{tap:'Toca para lanzar',total:'Total'},
+  fr:{tap:'Touchez pour lancer',total:'Total'}
+};
+const TX = T[LANG] || T.en;
+
+/* ---------- dice notation: ?dice=2d6 (1-10 dice, 2-100 sides) ---------- */
+const m = /^(\d{1,2})?d(\d{1,3})$/i.exec((Q.get('dice') || '2d6').trim());
+const COUNT = m ? Math.min(10, Math.max(1, +(m[1] || 1))) : 2;
+const SIDES = m ? Math.min(100, Math.max(2, +m[2])) : 6;
+
+/* unbiased random integer in [0, n) */
+const rnd = n => { const a = new Uint32Array(1), lim = Math.floor(4294967296 / n) * n;
+  do crypto.getRandomValues(a); while(a[0] >= lim); return a[0] % n; };
+
+const PIPS = {1:[5], 2:[1,9], 3:[1,5,9], 4:[1,3,7,9], 5:[1,3,5,7,9], 6:[1,3,4,6,7,9]};
+const $ = id => document.getElementById(id);
+const tray = $('tray'), info = $('info'), card = $('card');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const dice = Array.from({length: COUNT}, () => {
+  const el = document.createElement('div');
+  el.className = 'die' + (SIDES === 6 ? ' d6' : '');
+  tray.appendChild(el);
+  return {el, v: 1 + rnd(SIDES)};
+});
+
+function paint(d){
+  if(SIDES === 6){
+    const on = new Set(PIPS[d.v]);
+    d.el.innerHTML = '<div class="pips">' + Array.from({length: 9}, (_, i) => `<i${on.has(i + 1) ? ' class="on"' : ''}></i>`).join('') + '</div>';
+  } else {
+    d.el.innerHTML = `${d.v}<small>d${SIDES}</small>`;
+  }
+}
+dice.forEach(paint);
+
+/* ---------- sizing: pick the column count that gives the biggest dice ---------- */
+function layout(){
+  const W = tray.clientWidth, H = tray.clientHeight, gap = Math.max(6, Math.min(W, H) * .05);
+  if(!W || !H) return;
+  let best = 0;
+  for(let c = 1; c <= COUNT; c++){
+    const r = Math.ceil(COUNT / c);
+    best = Math.max(best, Math.min((W - gap * (c - 1)) / c, (H - gap * (r - 1)) / r));
+  }
+  tray.style.setProperty('--g', gap + 'px');
+  tray.style.setProperty('--s', Math.max(36, Math.min(best, 220)) + 'px');
+}
+new ResizeObserver(layout).observe(tray);
+layout();
+
+/* ---------- rolling ---------- */
+let busy = false;
+function showTotal(final){
+  if(!final){ info.textContent = '…'; return; }
+  const sum = dice.reduce((a, d) => a + d.v, 0);
+  info.innerHTML = COUNT > 1 ? `${TX.total}: <b>${sum}</b>` : TX.tap;
+}
+info.textContent = TX.tap;
+
+function roll(){
+  if(busy) return;
+  busy = true;
+  showTotal(false);
+  const final = dice.map(() => 1 + rnd(SIDES));
+  let pending = COUNT;
+  dice.forEach((d, i) => {
+    d.el.classList.remove('max', 'min');
+    const stopAt = reduce ? 0 : 650 + i * 110;
+    if(!reduce) d.el.classList.add('rolling');
+    d.el.style.animationDelay = (i * -.07) + 's';
+    const t0 = Date.now();
+    const spin = setInterval(() => {
+      if(Date.now() - t0 >= stopAt){
+        clearInterval(spin);
+        d.el.classList.remove('rolling');
+        d.v = final[i]; paint(d);
+        if(SIDES > 2 && COUNT === 1 || SIDES === 20){
+          if(d.v === SIDES) d.el.classList.add('max');
+          if(d.v === 1) d.el.classList.add('min');
+        }
+        if(--pending === 0){ busy = false; showTotal(true); }
+      } else { d.v = 1 + rnd(SIDES); paint(d); }
+    }, 70);
+  });
+}
+card.addEventListener('click', roll);
+card.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); roll(); } });
+</script>
+</body>
+</html>

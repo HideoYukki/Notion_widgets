@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Minesweeper</title>
+<style>
+  :root{--card:#ffffff;--text:#1c2430;--accent:#3b6fd4}
+  @media (prefers-color-scheme:dark){
+    :root{--card:#232a36;--text:#eef2f8;--accent:#7aa7ff}
+  }
+  :root{
+    --muted:color-mix(in srgb,var(--text) 62%,transparent);
+    --line:color-mix(in srgb,var(--text) 14%,transparent);
+    --tile:color-mix(in srgb,var(--text) 8%,var(--card));
+    --closed:color-mix(in srgb,var(--accent) 30%,var(--card));
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;padding:2px;background:transparent;color:var(--text);
+    font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+
+  .card{container-type:size;width:100%;height:100%;border-radius:16px;background:var(--card);
+    box-shadow:inset 0 0 0 1px var(--line);overflow:hidden;display:flex;flex-direction:column;
+    padding:6px;gap:6px}
+  .head{flex:none;height:var(--hh,40px);display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:0 4px;font-variant-numeric:tabular-nums;font-weight:800;font-size:calc(var(--hh) * .42)}
+  .grp{display:flex;align-items:center;gap:8px;min-width:0}
+  .head button{font:inherit;cursor:pointer;border:0;border-radius:10px;background:var(--tile);color:var(--text);
+    height:calc(var(--hh) * .8);min-width:calc(var(--hh) * .8);padding:0 .5em;line-height:1}
+  .head button.on{background:var(--accent);color:var(--card)}
+  .face{font-size:calc(var(--hh) * .55)!important}
+  .area{flex:1;min-height:0;display:grid;place-items:center}
+  .board{display:grid;gap:var(--gap,1px);touch-action:manipulation}
+  .cell{width:var(--c);height:var(--c);border-radius:calc(var(--c) * .18);display:grid;place-items:center;
+    font-weight:800;font-size:calc(var(--c) * .58);line-height:1;cursor:pointer;
+    background:var(--closed);box-shadow:inset 0 calc(var(--c) * -.07) 0 rgba(0,0,0,.14),inset 0 calc(var(--c) * .05) 0 rgba(255,255,255,.22)}
+  .cell:hover{filter:brightness(1.08)}
+  .cell.open{background:var(--tile);box-shadow:none;cursor:default;filter:none}
+  .cell.boom{background:#e5484d}
+  .n1{color:#3b82f6}.n2{color:#16a34a}.n3{color:#ef4444}.n4{color:#8b5cf6}
+  .n5{color:#b45309}.n6{color:#0891b2}.n7{color:var(--text)}.n8{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <div class="head" id="head">
+    <div class="grp"><span id="left"></span><button id="mode" title="Flag mode" aria-pressed="false">🚩</button></div>
+    <button class="face" id="face">🙂</button>
+    <div class="grp"><span id="time">0</span></div>
+  </div>
+  <div class="area" id="area"><div class="board" id="board"></div></div>
+</div>
+
+<script>
+/* ---------- colors from the URL: ?color=4E2B3C&text=FBF3F7&accent=F2B8CF ---------- */
+const Q = new URLSearchParams(location.search);
+const hex = v => { v=(v||'').replace(/^#/,'').trim(); if(/^[0-9a-f]{3}$/i.test(v)) v=v.replace(/./g,'$&$&'); return /^[0-9a-f]{6}$/i.test(v)?'#'+v:null; };
+(function(){
+  const bg=hex(Q.get('color')), tx=hex(Q.get('text')), ac=hex(Q.get('accent')), s=document.documentElement.style;
+  if(bg){
+    const n=parseInt(bg.slice(1),16), lum=(.299*(n>>16&255)+.587*(n>>8&255)+.114*(n&255))/255;
+    s.setProperty('--card',bg);
+    s.setProperty('--text',lum<.55?'#f6eef2':'#1c2430');
+    s.setProperty('--accent','color-mix(in srgb, var(--text) 78%, var(--card))');
+  }
+  if(tx) s.setProperty('--text',tx);
+  if(ac) s.setProperty('--accent',ac);
+})();
+
+/* ---------- parameters: ?level=beginner|intermediate|expert&cols=9&rows=9&mines=10 ---------- */
+const int = (v, min, max, d) => { const n = parseInt(v, 10); return isFinite(n) ? Math.min(max, Math.max(min, n)) : d; };
+const LEVELS = {beginner:[9, 9, 10], intermediate:[16, 16, 40], expert:[30, 16, 99]};
+const lv = LEVELS[Q.get('level')] || LEVELS.beginner;
+const custom = Q.has('cols') || Q.has('rows');
+const COLS = int(Q.get('cols'), 5, 40, lv[0]);
+const ROWS = int(Q.get('rows'), 5, 30, lv[1]);
+const MINES = int(Q.get('mines'), 1, COLS * ROWS - 1, custom ? Math.round(COLS * ROWS * .15) : lv[2]);
+const N = COLS * ROWS;
+
+/* unbiased random integer in [0, n) */
+const rnd = n => { const a = new Uint32Array(1), lim = Math.floor(4294967296 / n) * n;
+  do crypto.getRandomValues(a); while(a[0] >= lim); return a[0] % n; };
+
+/* ---------- game state ---------- */
+const $ = id => document.getElementById(id);
+const boardEl = $('board'), faceEl = $('face'), leftEl = $('left'), timeEl = $('time'), modeBtn = $('mode');
+let cells, started, over, openCount, flags, t0, timer, flagMode = false;
+
+const around = i => {
+  const x = i % COLS, y = (i / COLS) | 0, out = [];
+  for(let dy = -1; dy <= 1; dy++) for(let dx = -1; dx <= 1; dx++){
+    if(!dx && !dy) continue;
+    const nx = x + dx, ny = y + dy;
+    if(nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS) out.push(ny * COLS + nx);
+  }
+  return out;
+};
+
+const els = Array.from({length: N}, (_, i) => {
+  const e = document.createElement('div');
+  e.className = 'cell'; e.dataset.i = i;
+  boardEl.appendChild(e);
+  return e;
+});
+
+function reset(){
+  cells = Array.from({length: N}, () => ({m:false, n:0, o:false, f:false}));
+  started = over = false; openCount = flags = 0;
+  clearInterval(timer); timeEl.textContent = '0';
+  faceEl.textContent = '🙂';
+  els.forEach((e, i) => paint(i));
+  counter();
+}
+function counter(){ leftEl.textContent = '🚩 ' + (MINES - flags); }
+
+/* mines are placed on the first click, so the first click (and its neighbours, when there is room) is always safe */
+function plant(safe){
+  const banned = new Set(N - 9 >= MINES ? [safe, ...around(safe)] : [safe]);
+  const pool = [];
+  for(let i = 0; i < N; i++) if(!banned.has(i)) pool.push(i);
+  for(let k = 0; k < MINES; k++){
+    const j = k + rnd(pool.length - k);
+    [pool[k], pool[j]] = [pool[j], pool[k]];
+    cells[pool[k]].m = true;
+  }
+  cells.forEach((c, i) => { c.n = around(i).filter(j => cells[j].m).length; });
+  started = true; t0 = Date.now();
+  timer = setInterval(() => { timeEl.textContent = Math.floor((Date.now() - t0) / 1000); }, 250);
+}
+
+function paint(i){
+  const c = cells[i], e = els[i];
+  e.className = 'cell';
+  e.textContent = '';
+  if(c.o){
+    e.classList.add('open');
+    if(c.m){ e.textContent = '💣'; if(c.boom) e.classList.add('boom'); }
+    else if(c.n){ e.textContent = c.n; e.classList.add('n' + c.n); }
+  } else if(c.f){
+    e.textContent = over && !c.m ? '❌' : '🚩';
+  } else if(over && c.m){
+    e.classList.add('open'); e.textContent = '💣';
+  }
+}
+
+function lose(hit){
+  over = true; clearInterval(timer);
+  cells[hit].boom = true;
+  faceEl.textContent = '😵';
+  els.forEach((e, i) => paint(i));
+}
+function win(){
+  over = true; clearInterval(timer);
+  faceEl.textContent = '😎';
+  cells.forEach((c, i) => { if(c.m && !c.f){ c.f = true; flags++; } });
+  els.forEach((e, i) => paint(i));
+  counter();
+}
+
+function open(i){
+  const c = cells[i];
+  if(over || c.f || c.o) return;
+  if(!started) plant(i);
+  if(c.m){ c.o = true; lose(i); return; }
+  const stack = [i];
+  while(stack.length){
+    const k = stack.pop(), d = cells[k];
+    if(d.o || d.f) continue;
+    d.o = true; openCount++; paint(k);
+    if(!d.n) around(k).forEach(j => { if(!cells[j].o) stack.push(j); });
+  }
+  if(openCount === N - MINES) win();
+}
+function toggleFlag(i){
+  const c = cells[i];
+  if(over || c.o) return;
+  c.f = !c.f; flags += c.f ? 1 : -1;
+  paint(i); counter();
+}
+/* clicking an opened number whose flags are all placed opens the remaining neighbours */
+function chord(i){
+  const c = cells[i];
+  if(!c.o || !c.n) return;
+  const nb = around(i);
+  if(nb.filter(j => cells[j].f).length !== c.n) return;
+  nb.forEach(j => { if(!over) open(j); });
+}
+function act(i){
+  const c = cells[i];
+  if(c.o) chord(i);
+  else if(flagMode) toggleFlag(i);
+  else open(i);
+}
+
+/* ---------- input: click, right click, long press (touch) ---------- */
+let press = null, lastType = 'mouse';
+boardEl.addEventListener('pointerdown', e => {
+  lastType = e.pointerType;
+  const t = e.target.closest('.cell');
+  if(!t || e.button !== 0) return;
+  const i = +t.dataset.i;
+  press = {i, long:false, timer:setTimeout(() => { press.long = true; if(!cells[i].o){ toggleFlag(i); navigator.vibrate && navigator.vibrate(15); } }, 420)};
+});
+boardEl.addEventListener('pointerup', e => {
+  if(!press) return;
+  clearTimeout(press.timer);
+  const t = e.target.closest('.cell');
+  if(!press.long && t && +t.dataset.i === press.i) act(press.i);
+  press = null;
+});
+boardEl.addEventListener('pointercancel', () => { if(press){ clearTimeout(press.timer); press = null; } });
+boardEl.addEventListener('pointerleave', () => { if(press){ clearTimeout(press.timer); press = null; } });
+boardEl.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  if(lastType === 'touch') return;                 // long press is handled above
+  const t = e.target.closest('.cell');
+  if(t) toggleFlag(+t.dataset.i);
+});
+faceEl.addEventListener('click', reset);
+modeBtn.addEventListener('click', () => {
+  flagMode = !flagMode;
+  modeBtn.classList.toggle('on', flagMode);
+  modeBtn.setAttribute('aria-pressed', flagMode);
+});
+
+/* ---------- sizing ---------- */
+const card = $('card');
+function size(){
+  const w = card.clientWidth, h = card.clientHeight;
+  if(!w || !h) return;
+  const hh = Math.max(30, Math.min(52, h * .12));
+  const c0 = Math.min((w - 12) / COLS, (h - hh - 24) / ROWS);
+  const gap = Math.max(1, Math.round(c0 * .04));
+  const c = Math.max(10, Math.floor(Math.min((w - 12 - gap * (COLS - 1)) / COLS, (h - hh - 24 - gap * (ROWS - 1)) / ROWS)));
+  card.style.setProperty('--hh', hh + 'px');
+  boardEl.style.setProperty('--gap', gap + 'px');
+  boardEl.style.setProperty('--c', c + 'px');
+  boardEl.style.gridTemplateColumns = `repeat(${COLS}, ${c}px)`;
+}
+new ResizeObserver(size).observe(card);
+size();
+reset();
+</script>
+</body>
+</html>

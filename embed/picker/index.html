@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Random picker</title>
+<style>
+  :root{--card:#ffffff;--text:#1c2430;--accent:#3b6fd4}
+  @media (prefers-color-scheme:dark){
+    :root{--card:#232a36;--text:#eef2f8;--accent:#7aa7ff}
+  }
+  :root{
+    --muted:color-mix(in srgb,var(--text) 62%,transparent);
+    --line:color-mix(in srgb,var(--text) 14%,transparent);
+    --tile:color-mix(in srgb,var(--text) 8%,var(--card));
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;padding:2px;background:transparent;color:var(--text);
+    font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+
+  .card{container-type:size;width:100%;height:100%;border-radius:16px;background:var(--card);
+    box-shadow:inset 0 0 0 1px var(--line);overflow:hidden;display:flex;flex-direction:column;
+    gap:clamp(6px,2.5cqh,14px);padding:clamp(8px,3.5cqmin,20px)}
+
+  .stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;text-align:center;overflow:auto}
+  .hint{color:var(--muted);font-size:clamp(12px,min(3.4cqw,7cqh),18px)}
+  .single{font-weight:800;line-height:1.1;max-width:100%;overflow-wrap:anywhere;
+    font-size:clamp(22px,min(11cqw,26cqh),88px);color:var(--accent)}
+  .winners{display:flex;flex-wrap:wrap;gap:clamp(4px,1.4cqmin,10px);justify-content:center;align-content:center;width:100%}
+  .win{font-weight:800;padding:.25em .7em;border-radius:999px;background:var(--accent);color:var(--card);
+    font-size:clamp(14px,min(5cqw,10cqh),34px);overflow-wrap:anywhere}
+  .pop{animation:pop .35s cubic-bezier(.3,1.6,.5,1)}
+  @keyframes pop{from{transform:scale(.7);opacity:.3}to{transform:scale(1);opacity:1}}
+  .teams{display:grid;gap:clamp(6px,1.6cqmin,12px);width:100%;align-self:stretch;align-content:start}
+  .team{background:var(--tile);border-radius:12px;padding:clamp(6px,2cqmin,12px);min-width:0}
+  .team h4{margin:0 0 .3em;color:var(--accent);font-size:clamp(10px,min(2.8cqw,5cqh),14px);
+    letter-spacing:.1em;text-transform:uppercase}
+  .team div{font-size:clamp(12px,min(3.4cqw,6cqh),18px);font-weight:600;overflow-wrap:anywhere;line-height:1.35}
+
+  .pool{flex:none;display:flex;flex-wrap:wrap;gap:4px;max-height:26%;overflow:hidden;justify-content:center}
+  .chip{padding:.15em .6em;border-radius:999px;background:var(--tile);color:var(--muted);
+    font-size:clamp(10px,min(2.6cqw,5cqh),13px);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chip.used{text-decoration:line-through;opacity:.45}
+  .bar{flex:none;display:flex;gap:8px;justify-content:center;align-items:center}
+  button{font:inherit;cursor:pointer;border:0;border-radius:12px;padding:.55em 1.4em;font-weight:700;
+    font-size:clamp(12px,min(3.6cqw,8cqh),18px);background:var(--accent);color:var(--card)}
+  button.ghost{background:transparent;color:var(--text);box-shadow:inset 0 0 0 1px var(--line)}
+  button:disabled{opacity:.5;cursor:default}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="stage" id="stage"></div>
+  <div class="pool" id="pool"></div>
+  <div class="bar"><button id="go"></button><button class="ghost" id="reset" hidden></button></div>
+</div>
+
+<script>
+/* ---------- colors from the URL: ?color=4E2B3C&text=FBF3F7&accent=F2B8CF ---------- */
+const Q = new URLSearchParams(location.search);
+const hex = v => { v=(v||'').replace(/^#/,'').trim(); if(/^[0-9a-f]{3}$/i.test(v)) v=v.replace(/./g,'$&$&'); return /^[0-9a-f]{6}$/i.test(v)?'#'+v:null; };
+(function(){
+  const bg=hex(Q.get('color')), tx=hex(Q.get('text')), ac=hex(Q.get('accent')), s=document.documentElement.style;
+  if(bg){
+    const n=parseInt(bg.slice(1),16), lum=(.299*(n>>16&255)+.587*(n>>8&255)+.114*(n&255))/255;
+    s.setProperty('--card',bg);
+    s.setProperty('--text',lum<.55?'#f6eef2':'#1c2430');
+    s.setProperty('--accent','color-mix(in srgb, var(--text) 78%, var(--card))');
+  }
+  if(tx) s.setProperty('--text',tx);
+  if(ac) s.setProperty('--accent',ac);
+})();
+
+/* ---------- language ---------- */
+let LOC = (navigator.languages && navigator.languages[0]) || navigator.language || 'en';
+try{ new Intl.DateTimeFormat(LOC); }catch(e){ LOC = 'en'; }
+const LANG = LOC.split('-')[0].toLowerCase();
+const T = {
+  en:{draw:'Draw',again:'Draw again',shuffle:'Shuffle teams',team:'Team',reset:'Reset',ready:'Press the button to draw',
+      items:['Pizza','Sushi','Tacos','Salad','Burger']},
+  pl:{draw:'Losuj',again:'Losuj ponownie',shuffle:'Losuj zespoły',team:'Zespół',reset:'Od nowa',ready:'Kliknij przycisk, aby wylosować',
+      items:['Pizza','Sushi','Tacos','Sałatka','Burger']},
+  de:{draw:'Auslosen',again:'Nochmal',shuffle:'Teams mischen',team:'Team',reset:'Zurücksetzen',ready:'Taste drücken, um zu losen',
+      items:['Pizza','Sushi','Tacos','Salat','Burger']},
+  es:{draw:'Sortear',again:'Sortear otra vez',shuffle:'Mezclar equipos',team:'Equipo',reset:'Reiniciar',ready:'Pulsa el botón para sortear',
+      items:['Pizza','Sushi','Tacos','Ensalada','Hamburguesa']},
+  fr:{draw:'Tirer au sort',again:'Retirer',shuffle:'Mélanger les équipes',team:'Équipe',reset:'Réinitialiser',ready:'Appuyez sur le bouton pour tirer',
+      items:['Pizza','Sushi','Tacos','Salade','Burger']}
+};
+const TX = T[LANG] || T.en;
+
+/* ---------- parameters: ?items=A,B,C&mode=pick|teams&pick=1&teams=2&repeat=on|off ---------- */
+const int = (v, min, max, d) => { const n = parseInt(v, 10); return isFinite(n) ? Math.min(max, Math.max(min, n)) : d; };
+const parsed = (Q.get('items') || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 200);
+const ITEMS = parsed.length ? parsed : TX.items;
+const MODE = Q.get('mode') === 'teams' ? 'teams' : 'pick';
+const PICK = int(Q.get('pick'), 1, 20, 1);
+const TEAMS = int(Q.get('teams'), 2, 10, 2);
+const REPEAT = Q.get('repeat') !== 'off';        // off = a drawn item leaves the pool
+
+/* unbiased random integer in [0, n) */
+const rnd = n => { const a = new Uint32Array(1), lim = Math.floor(4294967296 / n) * n;
+  do crypto.getRandomValues(a); while(a[0] >= lim); return a[0] % n; };
+const shuffle = arr => { const a = arr.slice(); for(let i = a.length - 1; i > 0; i--){ const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+const $ = id => document.getElementById(id);
+const stage = $('stage'), poolEl = $('pool'), go = $('go'), reset = $('reset');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+let used = new Set(), drawn = false, busy = false;
+const left = () => ITEMS.map((v, i) => i).filter(i => !used.has(i));
+
+function renderPool(){
+  poolEl.innerHTML = ITEMS.map((v, i) => `<span class="chip${used.has(i) ? ' used' : ''}">${esc(v)}</span>`).join('');
+}
+function renderButtons(){
+  const exhausted = !REPEAT && left().length < (MODE === 'teams' ? 1 : 1);
+  go.textContent = MODE === 'teams' ? TX.shuffle : (drawn ? TX.again : TX.draw);
+  go.disabled = busy || exhausted;
+  reset.textContent = TX.reset;
+  reset.hidden = REPEAT || !used.size;
+}
+function showPick(idxs, animate){
+  const cls = animate ? ' pop' : '';
+  stage.innerHTML = idxs.length === 1
+    ? `<div class="single${cls}">${esc(ITEMS[idxs[0]])}</div>`
+    : `<div class="winners">${idxs.map(i => `<span class="win${cls}">${esc(ITEMS[i])}</span>`).join('')}</div>`;
+}
+function showTeams(groups){
+  const cols = Math.min(groups.length, 4);
+  stage.innerHTML = `<div class="teams" style="grid-template-columns:repeat(${cols},minmax(0,1fr))">` +
+    groups.map((g, k) => `<div class="team pop"><h4>${TX.team} ${k + 1}</h4><div>${g.map(i => esc(ITEMS[i])).join('<br>')}</div></div>`).join('') + '</div>';
+}
+
+function draw(){
+  if(busy) return;
+  const pool = REPEAT ? ITEMS.map((v, i) => i) : left();
+  if(!pool.length) return;
+  busy = true; renderButtons();
+
+  if(MODE === 'teams'){
+    const order = shuffle(ITEMS.map((v, i) => i));
+    const n = Math.min(TEAMS, order.length), groups = Array.from({length: n}, () => []);
+    order.forEach((idx, k) => groups[k % n].push(idx));
+    showTeams(groups); drawn = true; busy = false; renderButtons();
+    return;
+  }
+
+  const k = Math.min(PICK, pool.length);
+  const result = shuffle(pool).slice(0, k);
+  const finish = () => {
+    showPick(result, true);
+    if(!REPEAT) result.forEach(i => used.add(i));
+    drawn = true; busy = false; renderPool(); renderButtons();
+  };
+  if(reduce){ finish(); return; }
+
+  /* flicker through random names, slowing down until the result lands */
+  let step = 0, delay = 45;
+  const tick = () => {
+    if(delay > 190){ finish(); return; }
+    showPick(shuffle(pool).slice(0, k), false);
+    step++; delay *= 1.13;
+    setTimeout(tick, delay);
+  };
+  tick();
+}
+
+go.addEventListener('click', draw);
+reset.addEventListener('click', () => { used = new Set(); drawn = false; stage.innerHTML = `<div class="hint">${TX.ready}</div>`; renderPool(); renderButtons(); });
+stage.innerHTML = `<div class="hint">${TX.ready}</div>`;
+renderPool(); renderButtons();
+</script>
+</body>
+</html>
