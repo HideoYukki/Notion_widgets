@@ -92,11 +92,11 @@ const COLORS = [
 ];
 const WIDGETS = {
   weather: {
-    name:'🌤️ Weather', path:'embed/weather/', height:200,
+    name:'🌤️ Weather', path:'../embed/weather/', height:200,
     fields:[...COLORS.map(c => ({type:'color', ...c}))]
   },
   clock: {
-    name:'🕐 World clock', path:'embed/clock/', height:240,
+    name:'🕐 World clock', path:'../embed/clock/', height:240,
     fields:[
       {type:'textarea', k:'cities', label:'Cities (one per line: Name|Time/Zone)', max:8,
         value:'Warsaw|Europe/Warsaw\nLondon|Europe/London\nTokyo|Asia/Tokyo\nSydney|Australia/Sydney',
@@ -105,7 +105,7 @@ const WIDGETS = {
     ]
   },
   parallax: {
-    name:'🖼️ Parallax image', path:'embed/parallax/', height:300,
+    name:'🖼️ Parallax image', path:'../embed/parallax/', height:300,
     fields:[
       {type:'text', k:'src', label:'Image URL', value:'', placeholder:'https://…/image.jpg'},
       {type:'select', k:'fit', label:'Fit', def:'cover', options:['cover','contain','fill']},
